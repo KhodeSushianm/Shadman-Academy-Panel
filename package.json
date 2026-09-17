@@ -18,8 +18,8 @@
     "start": "electron .",
     "dev": "electron .",
     "rebuild:vendor": "node vendor/sql.js/build-inline-wasm.js && node vendor/jalaali/build-jalaali.js",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win --x64",
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win --x64 --publish never",
     "dist:dir": "electron-builder --dir"
   },
   "devDependencies": {
@@ -70,6 +70,7 @@
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
       "displayLanguageSelector": false
-    }
+    },
+    "publish": null
   }
 }
