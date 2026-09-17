@@ -269,6 +269,13 @@ async function init(){
  let saved=null;
  if(window.electronAPI){
    try{saved=await window.electronAPI.loadDatabase();}catch(e){console.error(e);}
+   /* اولین اجرا: هنوز پوشه‌ای انتخاب نشده — از کاربر می‌پرسیم */
+   if(!saved && typeof window.electronAPI.chooseInitialFolder==='function'){
+     try{
+       const picked=await window.electronAPI.chooseInitialFolder();
+       if(picked && picked.folder) saved=await window.electronAPI.loadDatabase();
+     }catch(e){console.error(e)}
+   }
  }else saved=localStorage.getItem(STORAGE);
  if(saved){try{db=new SQL.Database(Uint8Array.from(atob(saved),c=>c.charCodeAt(0)));}catch(e){createDB();}} else createDB();
  migrate();
@@ -290,11 +297,23 @@ function createDB(){
 }
 function migrate(){persist()}
 function dbBase64(){const data=db.export();let s='';for(let i=0;i<data.length;i+=0x8000)s+=String.fromCharCode(...data.subarray(i,i+0x8000));return btoa(s)}
-function persist(){
- const value=dbBase64();
- if(window.electronAPI) window.electronAPI.saveDatabase(value).catch(console.error);
- else localStorage.setItem(STORAGE,value);
+let persistTimer=null;
+/* نوشتن کامل فایل روی هر تغییر، هم کند است و هم پنجره‌ی خرابی فایل را بزرگ می‌کند.
+   تغییرات پیاپی در یک نوشتن ادغام می‌شوند و پیش از بستن صفحه flushed می‌شوند. */
+function persist(){clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,400)}
+function persistNow(){
+ clearTimeout(persistTimer);persistTimer=null;
+ if(!db)return;
+ try{
+  const value=dbBase64();
+  if(window.electronAPI) window.electronAPI.saveDatabase(value).then(r=>{if(r&&!r.ok)console.error('[db] ذخیره‌سازی ناموفق:',r.reason,r.message||'')}).catch(console.error);
+  else localStorage.setItem(STORAGE,value);
+ }catch(e){console.error('[db] خطا در persist:',e)}
 }
+function flushPersist(){if(persistTimer)persistNow()}
+window.addEventListener('beforeunload',flushPersist);
+window.addEventListener('pagehide',flushPersist);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushPersist()});
 function q(sql,params=[]){const r=db.exec(sql,params);if(!r.length)return[];return r[0].values.map(v=>Object.fromEntries(r[0].columns.map((c,i)=>[c,v[i]])))}
 function one(sql,p=[]){return q(sql,p)[0]}
 function nextId(table){return (one(`SELECT COALESCE(MAX(id),0)+1 n FROM ${table}`)?.n)||1}
@@ -484,7 +503,20 @@ async function chooseStorageFolder(){
 }
 async function updateStorageInfo(){
  const el=document.getElementById('storageInfo'); if(!el)return;
- if(window.electronAPI){const info=await window.electronAPI.getStorageInfo(); el.innerHTML=info?.folder?`<div><b style="color:var(--text)">پوشه فعلی:</b> ${esc(info.folder)}</div><div style="margin-top:6px">فایل دیتابیس: <b style="color:var(--text)">shima-academy.sqlite</b></div>`:'هنوز پوشه‌ای انتخاب نشده است. برای شروع، روی «انتخاب پوشه» بزنید.';}
+ if(window.electronAPI){
+   const info=await window.electronAPI.getStorageInfo();
+   if(!info||!info.folder){el.textContent='هنوز پوشه‌ای انتخاب نشده است. برای شروع، روی «انتخاب پوشه» بزنید.';}
+   else{
+     const kb=info.size!=null?(info.size/1024).toLocaleString('fa-IR',{maximumFractionDigits:1}):'—';
+     const src=info.source==='backup'
+       ?'<div class="note" style="margin-top:10px;border-color:rgba(180,161,111,.4)">⚠ فایل اصلی خوانده نشد؛ داده‌ها از <b>نسخه‌ی پشتیبان</b> بازیابی شد. لطفاً یک خروجی بگیرید.</div>'
+       :'';
+     el.innerHTML=`<div><b style="color:var(--text)">پوشه فعلی:</b> ${esc(info.folder)}</div>`
+       +`<div style="margin-top:6px">فایل دیتابیس: <b style="color:var(--text)">shima-academy.sqlite</b> — ${kb} کیلوبایت</div>`
+       +`<div style="margin-top:6px">نسخه‌ی پشتیبان خودکار: ${info.backupExists?'<b style="color:var(--green)">فعال</b> (shima-academy.sqlite.bak)':'<span style="color:var(--muted)">هنوز ساخته نشده</span>'}</div>`
+       +src;
+   }
+ }
  else el.textContent='حالت مرورگر: اطلاعات در localStorage همین مرورگر نگهداری می‌شود.';
  lucide.createIcons();
 }
