@@ -15,8 +15,11 @@ bower_components
 # ── خروجی بسته‌بندی ───────────────────────────────────────────
 dist/
 out/
-build/
 release/
+# پوشه‌ی build فقط منابع بیلد (آیکون) را نگه می‌دارد، نه خروجی‌ها
+build/*
+!build/icon.ico
+!build/icon.png
 *.dmg
 *.AppImage
 *.exe
