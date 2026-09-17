@@ -2,6 +2,16 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+/* مسیر userData را صریحاً قفل می‌کنیم.
+   Electron به‌صورت پیش‌فرض از app.getName() استفاده می‌کند که productName را
+   به name ترجیح می‌دهد. پس اگر فقط یک productName اضافه می‌کردیم، مسیر
+   config.json عوض می‌شد و پوشه‌ی دیتابیسی که کاربر پیش‌تر انتخاب کرده از
+   یاد می‌رفت (فایل داده سالم می‌ماند، ولی کاربر مجبور به انتخاب دوباره
+   می‌شد). با pin کردن مسیر، نام نمایشی برنامه بدون اثر جانبی قابل تغییر است.
+   باید پیش از هر فراخوانی app.getPath('userData') اجرا شود. */
+const USER_DATA_DIR_NAME = 'shima-academy-panel';
+app.setPath('userData', path.join(app.getPath('appData'), USER_DATA_DIR_NAME));
+
 let mainWindow;
 let dbFolder = null;
 let lastLoadSource = null;   // 'file' | 'backup' | null
