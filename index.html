@@ -22,11 +22,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shima Academy — پنل مدیریت</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js"></script>
+<!-- فونت وزیرمتن v33.0.3 — محلی، بدون نیاز به اینترنت -->
+<link rel="stylesheet" href="vendor/vazirmatn/vazirmatn.css">
+<!-- jalaali-js 2.0.1 (MIT) — تبدیل تاریخ میلادی به جلالی -->
+<script src="vendor/jalaali/jalaali.js"></script>
+<!-- lucide 1.47.0 (UMD) — محلی؛ پیش‌تر @latest بدون پین بود -->
+<script src="vendor/lucide/lucide.min.js"></script>
+<!-- sql.js 1.13.0 — محلی -->
+<script src="vendor/sql.js/sql-wasm.js"></script>
+<!-- بایت‌های WASM به‌صورت base64؛ چون Electron صفحه را از file:// باز می‌کند
+     و Emscripten در آن حالت نمی‌تواند .wasm را با fetch بخواند -->
+<script src="vendor/sql.js/sql-wasm.wasm.js"></script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Vazirmatn,sans-serif;background:#09090b;color:#fafafa}
 :root{--bg:#09090b;--surface:#111114;--surface2:#17171b;--surface3:#1d1d22;--border:rgba(255,255,255,.08);--muted:#85858f;--text:#fafafa;--primary:#8b5cf6;--green:#34d399;--yellow:#fbbf24;--red:#fb7185;--blue:#60a5fa;--sidebar:245px}
@@ -261,15 +267,60 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 <script>
 let SQL, db, currentPage='dashboard', editingId=null, toastTimer;
 const STORAGE='shima-academy-sqlite-v1';
+/* دسترسی به localStorage می‌تواند در برخی محیط‌ها (origin نامشخص، حالت
+   خصوصی، یا سیاست‌های سخت‌گیرانه) همان‌جا SecurityError پرتاب کند.
+   چون یکی از این فراخوانی‌ها در سطح بالای اسکریپت است، خطایش کل
+   اسکریپت را می‌کُشت و صفحه سفید می‌شد. اکنون همه‌جا مهار شده است. */
+const ls={
+  get(k,d=null){try{return localStorage.getItem(k)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,v)}catch(e){}},
+  keys(){try{return Object.keys(localStorage)}catch(e){return[]}}
+};
+
+/* ── تاریخ جلالی ─────────────────────────────────────────────
+   پیش‌تر تاریخ‌ها در کد hard-code بودند (۱۴۰۵/۰۶/۲۴) و یادداشت‌ها
+   با رشته‌ی تحت‌اللفظی «امروز» ذخیره می‌شدند؛ یعنی داده‌ها در زمان
+   منجمد بودند و مرتب‌سازی تاریخچه بی‌معنی بود. */
+function pad2(n){return String(n).padStart(2,'0')}
+function jalaliOf(d){
+ const r=window.jalaali.toJalaali(d.getFullYear(),d.getMonth()+1,d.getDate());
+ return r.jy+'/'+pad2(r.jm)+'/'+pad2(r.jd);
+}
+function todayJalali(){
+ try{return jalaliOf(new Date())}
+ catch(e){
+   console.error('[date] تبدیل جلالی ناموفق بود — به تاریخ میلادی برمی‌گردیم:',e);
+   return new Date().toISOString().slice(0,10);
+ }
+}
+function jalaliMonthPrefix(){const t=todayJalali();return t.slice(0,t.lastIndexOf('/'))}
 
 const seedData = {students:[], plans:[], exams:[], notes:[]};
 
+function b64ToBytes(b64){const bin=atob(b64),n=bin.length,out=new Uint8Array(n);for(let i=0;i<n;i++)out[i]=bin.charCodeAt(i);return out}
+/* اگر بایت‌های WASM درون‌خطی در دسترس باشند (حالت Electron/file://) مستقیماً
+   به initSqlJs داده می‌شوند تا هیچ fetch انجام نشود؛ در غیر این صورت — مثلاً
+   وقتی پروژه روی یک وب‌سرور http باز شده — از مسیر محلی vendor خوانده می‌شود. */
+function sqlJsConfig(){
+ const cfg={locateFile:f=>'vendor/sql.js/'+f};
+ if(typeof window!=='undefined'&&window.SQL_WASM_BASE64){
+   try{cfg.wasmBinary=b64ToBytes(window.SQL_WASM_BASE64)}catch(e){console.error('[wasm] رمزگشایی base64 ناموفق بود، به حالت fetch برمی‌گردیم:',e)}
+ }
+ return cfg;
+}
 async function init(){
- SQL=await initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/'+f});
+ SQL=await initSqlJs(sqlJsConfig());
  let saved=null;
  if(window.electronAPI){
    try{saved=await window.electronAPI.loadDatabase();}catch(e){console.error(e);}
- }else saved=localStorage.getItem(STORAGE);
+   /* اولین اجرا: هنوز پوشه‌ای انتخاب نشده — از کاربر می‌پرسیم */
+   if(!saved && typeof window.electronAPI.chooseInitialFolder==='function'){
+     try{
+       const picked=await window.electronAPI.chooseInitialFolder();
+       if(picked && picked.folder) saved=await window.electronAPI.loadDatabase();
+     }catch(e){console.error(e)}
+   }
+ }else saved=ls.get(STORAGE);
  if(saved){try{db=new SQL.Database(Uint8Array.from(atob(saved),c=>c.charCodeAt(0)));}catch(e){createDB();}} else createDB();
  migrate();
  render();
@@ -282,19 +333,31 @@ function createDB(){
  CREATE TABLE plans(id INTEGER PRIMARY KEY,student_id INTEGER,date TEXT,subject TEXT,title TEXT,duration INTEGER,status TEXT);
  CREATE TABLE exams(id INTEGER PRIMARY KEY,student_id INTEGER,title TEXT,date TEXT,score INTEGER);
  CREATE TABLE notes(id INTEGER PRIMARY KEY,student_id INTEGER,text TEXT,date TEXT);`);
- for(const s of seed.students) db.run(`INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)`,[s.id,s.first_name,s.last_name,s.phone,s.grade,s.field,s.advisor,s.status,s.score,s.progress,'1405/06/01']);
- for(const p of seed.plans) db.run(`INSERT INTO plans VALUES(?,?,?,?,?,?,?)`,[p.id,p.student_id,p.date,p.subject,p.title,p.duration,p.status]);
- for(const e of seed.exams) db.run(`INSERT INTO exams VALUES(?,?,?,?,?)`,[e.id,e.student_id,e.title,e.date,e.score]);
- for(const n of seed.notes) db.run(`INSERT INTO notes VALUES(?,?,?,?)`,[n.id,n.student_id,n.text,n.date]);
+ for(const s of seedData.students) db.run(`INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)`,[s.id,s.first_name,s.last_name,s.phone,s.grade,s.field,s.advisor,s.status,s.score,s.progress,todayJalali()]);
+ for(const p of seedData.plans) db.run(`INSERT INTO plans VALUES(?,?,?,?,?,?,?)`,[p.id,p.student_id,p.date,p.subject,p.title,p.duration,p.status]);
+ for(const e of seedData.exams) db.run(`INSERT INTO exams VALUES(?,?,?,?,?)`,[e.id,e.student_id,e.title,e.date,e.score]);
+ for(const n of seedData.notes) db.run(`INSERT INTO notes VALUES(?,?,?,?)`,[n.id,n.student_id,n.text,n.date]);
  persist();
 }
 function migrate(){persist()}
 function dbBase64(){const data=db.export();let s='';for(let i=0;i<data.length;i+=0x8000)s+=String.fromCharCode(...data.subarray(i,i+0x8000));return btoa(s)}
-function persist(){
- const value=dbBase64();
- if(window.electronAPI) window.electronAPI.saveDatabase(value).catch(console.error);
- else localStorage.setItem(STORAGE,value);
+let persistTimer=null;
+/* نوشتن کامل فایل روی هر تغییر، هم کند است و هم پنجره‌ی خرابی فایل را بزرگ می‌کند.
+   تغییرات پیاپی در یک نوشتن ادغام می‌شوند و پیش از بستن صفحه flushed می‌شوند. */
+function persist(){clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,400)}
+function persistNow(){
+ clearTimeout(persistTimer);persistTimer=null;
+ if(!db)return;
+ try{
+  const value=dbBase64();
+  if(window.electronAPI) window.electronAPI.saveDatabase(value).then(r=>{if(r&&!r.ok)console.error('[db] ذخیره‌سازی ناموفق:',r.reason,r.message||'')}).catch(console.error);
+  else ls.set(STORAGE,value);
+ }catch(e){console.error('[db] خطا در persist:',e)}
 }
+function flushPersist(){if(persistTimer)persistNow()}
+window.addEventListener('beforeunload',flushPersist);
+window.addEventListener('pagehide',flushPersist);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushPersist()});
 function q(sql,params=[]){const r=db.exec(sql,params);if(!r.length)return[];return r[0].values.map(v=>Object.fromEntries(r[0].columns.map((c,i)=>[c,v[i]])))}
 function one(sql,p=[]){return q(sql,p)[0]}
 function nextId(table){return (one(`SELECT COALESCE(MAX(id),0)+1 n FROM ${table}`)?.n)||1}
@@ -322,13 +385,15 @@ document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>{currentPage=b.da
 
 function dashboard(){
  const total=one('SELECT COUNT(*) n FROM students').n, active=one("SELECT COUNT(*) n FROM students WHERE status='active'").n;
- const avg=Math.round(one('SELECT COALESCE(AVG(score),0) n FROM students').n);
+ const avg=Math.round(one('SELECT COALESCE(AVG(score),0) n FROM exams WHERE score IS NOT NULL').n);
  const plans=one("SELECT COUNT(*) n FROM plans WHERE status='pending'").n;
+ const monthPrefix=jalaliMonthPrefix();
+ const newThisMonth=one('SELECT COUNT(*) n FROM students WHERE substr(created_at,1,length(?))=?',[monthPrefix,monthPrefix]).n;
  const acts=q(`SELECT s.first_name,s.last_name,p.subject,p.status,p.date FROM plans p JOIN students s ON s.id=p.student_id ORDER BY p.id DESC LIMIT 5`);
  return `<div class="page">
  <section class="page-head"><div><div class="eyebrow">OVERVIEW</div><h1 class="title">صبح بخیر، شیما 👋</h1><div class="desc">وضعیت کلی آکادمی را در یک نگاه بررسی کنید.</div></div><button class="primary" onclick="openStudentModal()"><i data-lucide="plus"></i>دانش‌آموز جدید</button></section>
  <section class="stats">
- ${stat('کل دانش‌آموزان',fmt(total),'users','+ ۸.۲٪ نسبت به ماه قبل')}
+ ${stat('کل دانش‌آموزان',fmt(total),'users',fmt(newThisMonth)+' دانش‌آموز جدید این ماه')}
  ${stat('دانش‌آموزان فعال',fmt(active),'user-check',Math.round(active/Math.max(total,1)*100)+'٪ از کل')}
  ${stat('میانگین تراز',fmt(avg),'trending-up','↑ روند کلی مثبت','blue')}
  ${stat('برنامه‌های در انتظار',fmt(plans),'calendar-clock','برای پیگیری امروز','yellow')}
@@ -418,15 +483,22 @@ function saveStudent(){
  const first=f('fFirst'),last=f('fLast');if(!first||!last)return toast('نام و نام خانوادگی الزامی است');
  const data=[first,last,f('fPhone'),f('fGrade'),f('fField'),f('fAdvisor'),f('fStatus'),Number(f('fScore'))||0,Math.max(0,Math.min(100,Number(f('fProgress'))||0))];
  if(editingId)db.run('UPDATE students SET first_name=?,last_name=?,phone=?,grade=?,field=?,advisor=?,status=?,score=?,progress=? WHERE id=?',[...data,editingId]);
- else db.run('INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)',[nextId('students'),...data,'1405/06/24']);
+ else db.run('INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)',[nextId('students'),...data,todayJalali()]);
  persist();closeModal();render();toast('دانش‌آموز ذخیره شد');
+}
+/* تراز دانش‌آموز = میانگین واقعی همه‌ی آزمون‌هایش.
+   پیش‌تر با «آخرین» آزمون بازنویسی می‌شد، در حالی که داشبورد آن را
+   «میانگین تراز» معرفی می‌کرد — یعنی عدد نمایش‌داده‌شده دروغ بود. */
+function recalcStudentScore(sid){
+ if(sid==null)return;
+ db.run('UPDATE students SET score=(SELECT COALESCE(ROUND(AVG(score)),0) FROM exams WHERE student_id=?) WHERE id=?',[sid,sid]);
 }
 function deleteStudent(id){if(!confirm('دانش‌آموز حذف شود؟'))return;db.run('DELETE FROM students WHERE id=?',[id]);db.run('DELETE FROM plans WHERE student_id=?',[id]);db.run('DELETE FROM exams WHERE student_id=?',[id]);db.run('DELETE FROM notes WHERE student_id=?',[id]);persist();render();toast('دانش‌آموز حذف شد')}
 
 function openPlanModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
  document.getElementById('modalTitle').textContent='برنامه مطالعاتی جدید';
- document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="pStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field"><label>تاریخ</label><input id="pDate" value="1405/06/24"></div><div class="field"><label>درس</label><input id="pSubject" placeholder="مثلاً زیست‌شناسی"></div><div class="field"><label>عنوان / مبحث</label><input id="pTitle"></div><div class="field"><label>مدت (دقیقه)</label><input id="pDuration" type="number" value="90"></div></div><div class="form-actions"><button class="primary" onclick="savePlan()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
+ document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="pStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field"><label>تاریخ</label><input id="pDate" value="${todayJalali()}"></div><div class="field"><label>درس</label><input id="pSubject" placeholder="مثلاً زیست‌شناسی"></div><div class="field"><label>عنوان / مبحث</label><input id="pTitle"></div><div class="field"><label>مدت (دقیقه)</label><input id="pDuration" type="number" value="90"></div></div><div class="form-actions"><button class="primary" onclick="savePlan()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
 function savePlan(){if(!f('pSubject'))return toast('درس را وارد کنید');db.run('INSERT INTO plans VALUES(?,?,?,?,?,?,?)',[nextId('plans'),Number(f('pStudent')),f('pDate'),f('pSubject'),f('pTitle'),Number(f('pDuration'))||0,'pending']);persist();closeModal();render();toast('برنامه ایجاد شد')}
@@ -436,11 +508,11 @@ function deletePlan(id){if(!confirm('این برنامه حذف شود؟'))retur
 function openExamModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
  document.getElementById('modalTitle').textContent='ثبت نتیجه آزمون';
- document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="eStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field"><label>نام آزمون</label><input id="eTitle" placeholder="آزمون جامع شهریور"></div><div class="field"><label>تاریخ</label><input id="eDate" value="1405/06/24"></div><div class="field full"><label>تراز</label><input id="eScore" type="number"></div></div><div class="form-actions"><button class="primary" onclick="saveExam()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
+ document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="eStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field"><label>نام آزمون</label><input id="eTitle" placeholder="آزمون جامع شهریور"></div><div class="field"><label>تاریخ</label><input id="eDate" value="${todayJalali()}"></div><div class="field full"><label>تراز</label><input id="eScore" type="number"></div></div><div class="form-actions"><button class="primary" onclick="saveExam()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
-function saveExam(){if(!f('eTitle')||!f('eScore'))return toast('نام آزمون و تراز الزامی است');const id=nextId('exams');db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[id,Number(f('eStudent')),f('eTitle'),f('eDate'),Number(f('eScore'))]);db.run('UPDATE students SET score=? WHERE id=?',[Number(f('eScore')),Number(f('eStudent'))]);persist();closeModal();render();toast('نتیجه آزمون ثبت شد')}
-function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;db.run('DELETE FROM exams WHERE id=?',[id]);persist();render();toast('آزمون حذف شد')}
+function saveExam(){if(!f('eTitle')||!f('eScore'))return toast('نام آزمون و تراز الزامی است');const id=nextId('exams');db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[id,Number(f('eStudent')),f('eTitle'),f('eDate'),Number(f('eScore'))]);recalcStudentScore(Number(f('eStudent')));persist();closeModal();render();toast('نتیجه آزمون ثبت شد')}
+function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;const owner=one('SELECT student_id FROM exams WHERE id=?',[id]);db.run('DELETE FROM exams WHERE id=?',[id]);if(owner)recalcStudentScore(owner.student_id);persist();render();toast('آزمون حذف شد')}
 
 function openNoteModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
@@ -448,7 +520,7 @@ function openNoteModal(){
  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="nStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field full"><label>یادداشت</label><textarea id="nText" placeholder="یادداشت مشاور..."></textarea></div></div><div class="form-actions"><button class="primary" onclick="saveNote()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
-function saveNote(){if(!f('nText'))return toast('متن یادداشت را وارد کنید');db.run('INSERT INTO notes VALUES(?,?,?,?)',[nextId('notes'),Number(f('nStudent')),f('nText'),'امروز']);persist();closeModal();render();toast('یادداشت ثبت شد')}
+function saveNote(){if(!f('nText'))return toast('متن یادداشت را وارد کنید');db.run('INSERT INTO notes VALUES(?,?,?,?)',[nextId('notes'),Number(f('nStudent')),f('nText'),todayJalali()]);persist();closeModal();render();toast('یادداشت ثبت شد')}
 function deleteNote(id){if(!confirm('یادداشت حذف شود؟'))return;db.run('DELETE FROM notes WHERE id=?',[id]);persist();render();toast('یادداشت حذف شد')}
 
 function openDrawer(id){
@@ -458,7 +530,7 @@ function openDrawer(id){
  const notes=q('SELECT * FROM notes WHERE student_id=? ORDER BY id DESC LIMIT 2',[id]);
  document.getElementById('drawerTitle').textContent='پروفایل دانش‌آموز';
  document.getElementById('drawerBody').innerHTML=`<div class="hero"><div class="hero-avatar">${esc(initials(s))}</div><div><div class="hero-name">${esc(studentName(s))}</div><div class="hero-meta">${esc(s.grade)} • ${esc(s.field)} • ${esc(s.advisor||'بدون مشاور')}</div><div style="margin-top:7px">${statusHtml(s.status)}</div></div></div>
- <div class="detail-grid"><div class="detail"><div class="detail-label">شماره تماس</div><div class="detail-value">${esc(s.phone)}</div></div><div class="detail"><div class="detail-label">آخرین تراز</div><div class="detail-value">${fmt(s.score)}</div></div><div class="detail"><div class="detail-label">پیشرفت</div><div class="detail-value">${fmt(s.progress)}٪</div></div><div class="detail"><div class="detail-label">مشاور</div><div class="detail-value">${esc(s.advisor||'—')}</div></div></div>
+ <div class="detail-grid"><div class="detail"><div class="detail-label">شماره تماس</div><div class="detail-value">${esc(s.phone)}</div></div><div class="detail"><div class="detail-label">میانگین تراز</div><div class="detail-value">${fmt(s.score)}</div></div><div class="detail"><div class="detail-label">پیشرفت</div><div class="detail-value">${fmt(s.progress)}٪</div></div><div class="detail"><div class="detail-label">مشاور</div><div class="detail-value">${esc(s.advisor||'—')}</div></div></div>
  <div class="drawer-section"><h3>برنامه‌های اخیر</h3>${plans.length?plans.map(p=>`<div class="detail" style="margin-bottom:7px"><b style="font-size:9px">${esc(p.subject)} — ${esc(p.title)}</b><div class="small">${fmt(p.duration)} دقیقه • ${p.status==='done'?'انجام شده':'در انتظار'}</div></div>`).join(''):'<div class="note">برنامه‌ای ثبت نشده است.</div>'}</div>
  <div class="drawer-section"><h3>آخرین آزمون‌ها</h3>${exams.length?exams.map(e=>`<div class="detail" style="margin-bottom:7px;display:flex;justify-content:space-between"><span>${esc(e.title)}</span><b>${fmt(e.score)}</b></div>`).join(''):'<div class="note">آزمونی ثبت نشده است.</div>'}</div>
  <div class="drawer-section"><h3>یادداشت مشاور</h3>${notes.length?notes.map(n=>`<div class="note" style="margin-bottom:7px">${esc(n.text)}</div>`).join(''):'<div class="note">یادداشتی ثبت نشده است.</div>'}</div>`;
@@ -468,7 +540,7 @@ function closeDrawer(){document.getElementById('drawerBack').classList.remove('s
 function closeModal(){document.getElementById('modalBack').classList.remove('show')}
 function f(id){return document.getElementById(id)?.value?.trim()||''}
 function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>x.classList.remove('show'),2200)}
-function toggleTheme(){document.body.classList.toggle('light');localStorage.setItem('shima-theme',document.body.classList.contains('light')?'light':'dark')}
+function toggleTheme(){document.body.classList.toggle('light');ls.set('shima-theme',document.body.classList.contains('light')?'light':'dark')}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
 function focusSearch(){if(currentPage!=='students'){currentPage='students';render()}setTimeout(()=>document.getElementById('studentSearch')?.focus(),50)}
 async function chooseStorageFolder(){
@@ -484,14 +556,27 @@ async function chooseStorageFolder(){
 }
 async function updateStorageInfo(){
  const el=document.getElementById('storageInfo'); if(!el)return;
- if(window.electronAPI){const info=await window.electronAPI.getStorageInfo(); el.innerHTML=info?.folder?`<div><b style="color:var(--text)">پوشه فعلی:</b> ${esc(info.folder)}</div><div style="margin-top:6px">فایل دیتابیس: <b style="color:var(--text)">shima-academy.sqlite</b></div>`:'هنوز پوشه‌ای انتخاب نشده است. برای شروع، روی «انتخاب پوشه» بزنید.';}
+ if(window.electronAPI){
+   const info=await window.electronAPI.getStorageInfo();
+   if(!info||!info.folder){el.textContent='هنوز پوشه‌ای انتخاب نشده است. برای شروع، روی «انتخاب پوشه» بزنید.';}
+   else{
+     const kb=info.size!=null?(info.size/1024).toLocaleString('fa-IR',{maximumFractionDigits:1}):'—';
+     const src=info.source==='backup'
+       ?'<div class="note" style="margin-top:10px;border-color:rgba(180,161,111,.4)">⚠ فایل اصلی خوانده نشد؛ داده‌ها از <b>نسخه‌ی پشتیبان</b> بازیابی شد. لطفاً یک خروجی بگیرید.</div>'
+       :'';
+     el.innerHTML=`<div><b style="color:var(--text)">پوشه فعلی:</b> ${esc(info.folder)}</div>`
+       +`<div style="margin-top:6px">فایل دیتابیس: <b style="color:var(--text)">shima-academy.sqlite</b> — ${kb} کیلوبایت</div>`
+       +`<div style="margin-top:6px">نسخه‌ی پشتیبان خودکار: ${info.backupExists?'<b style="color:var(--green)">فعال</b> (shima-academy.sqlite.bak)':'<span style="color:var(--muted)">هنوز ساخته نشده</span>'}</div>`
+       +src;
+   }
+ }
  else el.textContent='حالت مرورگر: اطلاعات در localStorage همین مرورگر نگهداری می‌شود.';
  lucide.createIcons();
 }
 function exportDB(){const a=db.export();let blob=new Blob([a],{type:'application/x-sqlite3'}),url=URL.createObjectURL(blob),el=document.createElement('a');el.href=url;el.download='shima-academy.sqlite';el.click();URL.revokeObjectURL(url);toast('فایل SQLite ساخته شد') }
-function resetDB(){if(!confirm('همه داده‌ها حذف و داده‌های نمونه برگردانده شود؟'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
+function resetDB(){if(!confirm('همه‌ی داده‌ها برای همیشه حذف شوند؟\n\nاین عمل قابل بازگشت نیست. پیشنهاد می‌شود پیش از ادامه، با «خروجی دیتابیس» یک پشتیبان بگیرید.'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
-if(localStorage.getItem('shima-theme')==='light')document.body.classList.add('light');
+if(ls.get('shima-theme')==='light')document.body.classList.add('light');
 init();
 </script>
 

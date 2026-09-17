@@ -1,8 +1,25 @@
 {
   "name": "shima-academy-panel",
-  "version": "1.1.0",
-  "description": "پنل مدیریتی آکادمی شیما شادمان با SQLite فایل‌محور",
+  "productName": "آکادمی شیما شادمان",
+  "version": "1.2.0",
+  "description": "پنل مدیریت آموزشی آکادمی شیما شادمان — اپلیکیشن رومیزی Electron با دیتابیس SQLite فایل‌محور، کاملاً آفلاین",
   "main": "main.js",
-  "scripts": {"start":"electron .","dev":"electron ."},
-  "devDependencies": {"electron":"^38.0.0"}
+  "private": true,
+  "author": "KhodeSushianm",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KhodeSushianm/Shadman-Academy-Panel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KhodeSushianm/Shadman-Academy-Panel/issues"
+  },
+  "homepage": "https://github.com/KhodeSushianm/Shadman-Academy-Panel#readme",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "rebuild:vendor": "node vendor/sql.js/build-inline-wasm.js && node vendor/jalaali/build-jalaali.js"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  }
 }
