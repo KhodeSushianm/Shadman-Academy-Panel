@@ -28,6 +28,9 @@
 <script src="vendor/lucide/lucide.min.js"></script>
 <!-- sql.js 1.13.0 — محلی -->
 <script src="vendor/sql.js/sql-wasm.js"></script>
+<!-- بایت‌های WASM به‌صورت base64؛ چون Electron صفحه را از file:// باز می‌کند
+     و Emscripten در آن حالت نمی‌تواند .wasm را با fetch بخواند -->
+<script src="vendor/sql.js/sql-wasm.wasm.js"></script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Vazirmatn,sans-serif;background:#09090b;color:#fafafa}
 :root{--bg:#09090b;--surface:#111114;--surface2:#17171b;--surface3:#1d1d22;--border:rgba(255,255,255,.08);--muted:#85858f;--text:#fafafa;--primary:#8b5cf6;--green:#34d399;--yellow:#fbbf24;--red:#fb7185;--blue:#60a5fa;--sidebar:245px}
@@ -262,11 +265,31 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 <script>
 let SQL, db, currentPage='dashboard', editingId=null, toastTimer;
 const STORAGE='shima-academy-sqlite-v1';
+/* دسترسی به localStorage می‌تواند در برخی محیط‌ها (origin نامشخص، حالت
+   خصوصی، یا سیاست‌های سخت‌گیرانه) همان‌جا SecurityError پرتاب کند.
+   چون یکی از این فراخوانی‌ها در سطح بالای اسکریپت است، خطایش کل
+   اسکریپت را می‌کُشت و صفحه سفید می‌شد. اکنون همه‌جا مهار شده است. */
+const ls={
+  get(k,d=null){try{return localStorage.getItem(k)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,v)}catch(e){}},
+  keys(){try{return Object.keys(localStorage)}catch(e){return[]}}
+};
 
 const seedData = {students:[], plans:[], exams:[], notes:[]};
 
+function b64ToBytes(b64){const bin=atob(b64),n=bin.length,out=new Uint8Array(n);for(let i=0;i<n;i++)out[i]=bin.charCodeAt(i);return out}
+/* اگر بایت‌های WASM درون‌خطی در دسترس باشند (حالت Electron/file://) مستقیماً
+   به initSqlJs داده می‌شوند تا هیچ fetch انجام نشود؛ در غیر این صورت — مثلاً
+   وقتی پروژه روی یک وب‌سرور http باز شده — از مسیر محلی vendor خوانده می‌شود. */
+function sqlJsConfig(){
+ const cfg={locateFile:f=>'vendor/sql.js/'+f};
+ if(typeof window!=='undefined'&&window.SQL_WASM_BASE64){
+   try{cfg.wasmBinary=b64ToBytes(window.SQL_WASM_BASE64)}catch(e){console.error('[wasm] رمزگشایی base64 ناموفق بود، به حالت fetch برمی‌گردیم:',e)}
+ }
+ return cfg;
+}
 async function init(){
- SQL=await initSqlJs({locateFile:f=>'vendor/sql.js/'+f});
+ SQL=await initSqlJs(sqlJsConfig());
  let saved=null;
  if(window.electronAPI){
    try{saved=await window.electronAPI.loadDatabase();}catch(e){console.error(e);}
@@ -277,7 +300,7 @@ async function init(){
        if(picked && picked.folder) saved=await window.electronAPI.loadDatabase();
      }catch(e){console.error(e)}
    }
- }else saved=localStorage.getItem(STORAGE);
+ }else saved=ls.get(STORAGE);
  if(saved){try{db=new SQL.Database(Uint8Array.from(atob(saved),c=>c.charCodeAt(0)));}catch(e){createDB();}} else createDB();
  migrate();
  render();
@@ -308,7 +331,7 @@ function persistNow(){
  try{
   const value=dbBase64();
   if(window.electronAPI) window.electronAPI.saveDatabase(value).then(r=>{if(r&&!r.ok)console.error('[db] ذخیره‌سازی ناموفق:',r.reason,r.message||'')}).catch(console.error);
-  else localStorage.setItem(STORAGE,value);
+  else ls.set(STORAGE,value);
  }catch(e){console.error('[db] خطا در persist:',e)}
 }
 function flushPersist(){if(persistTimer)persistNow()}
@@ -488,7 +511,7 @@ function closeDrawer(){document.getElementById('drawerBack').classList.remove('s
 function closeModal(){document.getElementById('modalBack').classList.remove('show')}
 function f(id){return document.getElementById(id)?.value?.trim()||''}
 function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>x.classList.remove('show'),2200)}
-function toggleTheme(){document.body.classList.toggle('light');localStorage.setItem('shima-theme',document.body.classList.contains('light')?'light':'dark')}
+function toggleTheme(){document.body.classList.toggle('light');ls.set('shima-theme',document.body.classList.contains('light')?'light':'dark')}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
 function focusSearch(){if(currentPage!=='students'){currentPage='students';render()}setTimeout(()=>document.getElementById('studentSearch')?.focus(),50)}
 async function chooseStorageFolder(){
@@ -524,7 +547,7 @@ async function updateStorageInfo(){
 function exportDB(){const a=db.export();let blob=new Blob([a],{type:'application/x-sqlite3'}),url=URL.createObjectURL(blob),el=document.createElement('a');el.href=url;el.download='shima-academy.sqlite';el.click();URL.revokeObjectURL(url);toast('فایل SQLite ساخته شد') }
 function resetDB(){if(!confirm('همه داده‌ها حذف و داده‌های نمونه برگردانده شود؟'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
-if(localStorage.getItem('shima-theme')==='light')document.body.classList.add('light');
+if(ls.get('shima-theme')==='light')document.body.classList.add('light');
 init();
 </script>
 
