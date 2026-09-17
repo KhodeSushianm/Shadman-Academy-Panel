@@ -3,6 +3,15 @@ name: build-windows
 on:
   push:
     branches: [build/windows-installer]
+    paths:
+      - 'main.js'
+      - 'preload.js'
+      - 'index.html'
+      - 'vendor/**'
+      - 'build/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
 permissions:
