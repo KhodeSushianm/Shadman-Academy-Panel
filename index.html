@@ -22,11 +22,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shima Academy — پنل مدیریت</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js"></script>
+<!-- فونت وزیرمتن v33.0.3 — محلی، بدون نیاز به اینترنت -->
+<link rel="stylesheet" href="vendor/vazirmatn/vazirmatn.css">
+<!-- lucide 1.47.0 (UMD) — محلی؛ پیش‌تر @latest بدون پین بود -->
+<script src="vendor/lucide/lucide.min.js"></script>
+<!-- sql.js 1.13.0 — محلی -->
+<script src="vendor/sql.js/sql-wasm.js"></script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Vazirmatn,sans-serif;background:#09090b;color:#fafafa}
 :root{--bg:#09090b;--surface:#111114;--surface2:#17171b;--surface3:#1d1d22;--border:rgba(255,255,255,.08);--muted:#85858f;--text:#fafafa;--primary:#8b5cf6;--green:#34d399;--yellow:#fbbf24;--red:#fb7185;--blue:#60a5fa;--sidebar:245px}
@@ -265,7 +266,7 @@ const STORAGE='shima-academy-sqlite-v1';
 const seedData = {students:[], plans:[], exams:[], notes:[]};
 
 async function init(){
- SQL=await initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/'+f});
+ SQL=await initSqlJs({locateFile:f=>'vendor/sql.js/'+f});
  let saved=null;
  if(window.electronAPI){
    try{saved=await window.electronAPI.loadDatabase();}catch(e){console.error(e);}
