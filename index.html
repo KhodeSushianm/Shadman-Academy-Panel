@@ -385,13 +385,15 @@ document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>{currentPage=b.da
 
 function dashboard(){
  const total=one('SELECT COUNT(*) n FROM students').n, active=one("SELECT COUNT(*) n FROM students WHERE status='active'").n;
- const avg=Math.round(one('SELECT COALESCE(AVG(score),0) n FROM students').n);
+ const avg=Math.round(one('SELECT COALESCE(AVG(score),0) n FROM exams WHERE score IS NOT NULL').n);
  const plans=one("SELECT COUNT(*) n FROM plans WHERE status='pending'").n;
+ const monthPrefix=jalaliMonthPrefix();
+ const newThisMonth=one('SELECT COUNT(*) n FROM students WHERE substr(created_at,1,length(?))=?',[monthPrefix,monthPrefix]).n;
  const acts=q(`SELECT s.first_name,s.last_name,p.subject,p.status,p.date FROM plans p JOIN students s ON s.id=p.student_id ORDER BY p.id DESC LIMIT 5`);
  return `<div class="page">
  <section class="page-head"><div><div class="eyebrow">OVERVIEW</div><h1 class="title">صبح بخیر، شیما 👋</h1><div class="desc">وضعیت کلی آکادمی را در یک نگاه بررسی کنید.</div></div><button class="primary" onclick="openStudentModal()"><i data-lucide="plus"></i>دانش‌آموز جدید</button></section>
  <section class="stats">
- ${stat('کل دانش‌آموزان',fmt(total),'users','+ ۸.۲٪ نسبت به ماه قبل')}
+ ${stat('کل دانش‌آموزان',fmt(total),'users',fmt(newThisMonth)+' دانش‌آموز جدید این ماه')}
  ${stat('دانش‌آموزان فعال',fmt(active),'user-check',Math.round(active/Math.max(total,1)*100)+'٪ از کل')}
  ${stat('میانگین تراز',fmt(avg),'trending-up','↑ روند کلی مثبت','blue')}
  ${stat('برنامه‌های در انتظار',fmt(plans),'calendar-clock','برای پیگیری امروز','yellow')}
@@ -484,6 +486,13 @@ function saveStudent(){
  else db.run('INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)',[nextId('students'),...data,todayJalali()]);
  persist();closeModal();render();toast('دانش‌آموز ذخیره شد');
 }
+/* تراز دانش‌آموز = میانگین واقعی همه‌ی آزمون‌هایش.
+   پیش‌تر با «آخرین» آزمون بازنویسی می‌شد، در حالی که داشبورد آن را
+   «میانگین تراز» معرفی می‌کرد — یعنی عدد نمایش‌داده‌شده دروغ بود. */
+function recalcStudentScore(sid){
+ if(sid==null)return;
+ db.run('UPDATE students SET score=(SELECT COALESCE(ROUND(AVG(score)),0) FROM exams WHERE student_id=?) WHERE id=?',[sid,sid]);
+}
 function deleteStudent(id){if(!confirm('دانش‌آموز حذف شود؟'))return;db.run('DELETE FROM students WHERE id=?',[id]);db.run('DELETE FROM plans WHERE student_id=?',[id]);db.run('DELETE FROM exams WHERE student_id=?',[id]);db.run('DELETE FROM notes WHERE student_id=?',[id]);persist();render();toast('دانش‌آموز حذف شد')}
 
 function openPlanModal(){
@@ -502,8 +511,8 @@ function openExamModal(){
  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="field full"><label>دانش‌آموز</label><select id="eStudent">${ss.map(s=>`<option value="${s.id}">${esc(studentName(s))}</option>`).join('')}</select></div><div class="field"><label>نام آزمون</label><input id="eTitle" placeholder="آزمون جامع شهریور"></div><div class="field"><label>تاریخ</label><input id="eDate" value="${todayJalali()}"></div><div class="field full"><label>تراز</label><input id="eScore" type="number"></div></div><div class="form-actions"><button class="primary" onclick="saveExam()">ذخیره</button><button class="secondary" onclick="closeModal()">انصراف</button></div>`;
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
-function saveExam(){if(!f('eTitle')||!f('eScore'))return toast('نام آزمون و تراز الزامی است');const id=nextId('exams');db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[id,Number(f('eStudent')),f('eTitle'),f('eDate'),Number(f('eScore'))]);db.run('UPDATE students SET score=? WHERE id=?',[Number(f('eScore')),Number(f('eStudent'))]);persist();closeModal();render();toast('نتیجه آزمون ثبت شد')}
-function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;db.run('DELETE FROM exams WHERE id=?',[id]);persist();render();toast('آزمون حذف شد')}
+function saveExam(){if(!f('eTitle')||!f('eScore'))return toast('نام آزمون و تراز الزامی است');const id=nextId('exams');db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[id,Number(f('eStudent')),f('eTitle'),f('eDate'),Number(f('eScore'))]);recalcStudentScore(Number(f('eStudent')));persist();closeModal();render();toast('نتیجه آزمون ثبت شد')}
+function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;const owner=one('SELECT student_id FROM exams WHERE id=?',[id]);db.run('DELETE FROM exams WHERE id=?',[id]);if(owner)recalcStudentScore(owner.student_id);persist();render();toast('آزمون حذف شد')}
 
 function openNoteModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
@@ -521,7 +530,7 @@ function openDrawer(id){
  const notes=q('SELECT * FROM notes WHERE student_id=? ORDER BY id DESC LIMIT 2',[id]);
  document.getElementById('drawerTitle').textContent='پروفایل دانش‌آموز';
  document.getElementById('drawerBody').innerHTML=`<div class="hero"><div class="hero-avatar">${esc(initials(s))}</div><div><div class="hero-name">${esc(studentName(s))}</div><div class="hero-meta">${esc(s.grade)} • ${esc(s.field)} • ${esc(s.advisor||'بدون مشاور')}</div><div style="margin-top:7px">${statusHtml(s.status)}</div></div></div>
- <div class="detail-grid"><div class="detail"><div class="detail-label">شماره تماس</div><div class="detail-value">${esc(s.phone)}</div></div><div class="detail"><div class="detail-label">آخرین تراز</div><div class="detail-value">${fmt(s.score)}</div></div><div class="detail"><div class="detail-label">پیشرفت</div><div class="detail-value">${fmt(s.progress)}٪</div></div><div class="detail"><div class="detail-label">مشاور</div><div class="detail-value">${esc(s.advisor||'—')}</div></div></div>
+ <div class="detail-grid"><div class="detail"><div class="detail-label">شماره تماس</div><div class="detail-value">${esc(s.phone)}</div></div><div class="detail"><div class="detail-label">میانگین تراز</div><div class="detail-value">${fmt(s.score)}</div></div><div class="detail"><div class="detail-label">پیشرفت</div><div class="detail-value">${fmt(s.progress)}٪</div></div><div class="detail"><div class="detail-label">مشاور</div><div class="detail-value">${esc(s.advisor||'—')}</div></div></div>
  <div class="drawer-section"><h3>برنامه‌های اخیر</h3>${plans.length?plans.map(p=>`<div class="detail" style="margin-bottom:7px"><b style="font-size:9px">${esc(p.subject)} — ${esc(p.title)}</b><div class="small">${fmt(p.duration)} دقیقه • ${p.status==='done'?'انجام شده':'در انتظار'}</div></div>`).join(''):'<div class="note">برنامه‌ای ثبت نشده است.</div>'}</div>
  <div class="drawer-section"><h3>آخرین آزمون‌ها</h3>${exams.length?exams.map(e=>`<div class="detail" style="margin-bottom:7px;display:flex;justify-content:space-between"><span>${esc(e.title)}</span><b>${fmt(e.score)}</b></div>`).join(''):'<div class="note">آزمونی ثبت نشده است.</div>'}</div>
  <div class="drawer-section"><h3>یادداشت مشاور</h3>${notes.length?notes.map(n=>`<div class="note" style="margin-bottom:7px">${esc(n.text)}</div>`).join(''):'<div class="note">یادداشتی ثبت نشده است.</div>'}</div>`;
@@ -565,7 +574,7 @@ async function updateStorageInfo(){
  lucide.createIcons();
 }
 function exportDB(){const a=db.export();let blob=new Blob([a],{type:'application/x-sqlite3'}),url=URL.createObjectURL(blob),el=document.createElement('a');el.href=url;el.download='shima-academy.sqlite';el.click();URL.revokeObjectURL(url);toast('فایل SQLite ساخته شد') }
-function resetDB(){if(!confirm('همه داده‌ها حذف و داده‌های نمونه برگردانده شود؟'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
+function resetDB(){if(!confirm('همه‌ی داده‌ها برای همیشه حذف شوند؟\n\nاین عمل قابل بازگشت نیست. پیشنهاد می‌شود پیش از ادامه، با «خروجی دیتابیس» یک پشتیبان بگیرید.'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
 if(ls.get('shima-theme')==='light')document.body.classList.add('light');
 init();
