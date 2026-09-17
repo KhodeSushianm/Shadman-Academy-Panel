@@ -17,9 +17,59 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "rebuild:vendor": "node vendor/sql.js/build-inline-wasm.js && node vendor/jalaali/build-jalaali.js"
+    "rebuild:vendor": "node vendor/sql.js/build-inline-wasm.js && node vendor/jalaali/build-jalaali.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win --x64",
+    "dist:dir": "electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^38.0.0"
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.shadman.academy-panel",
+    "productName": "آکادمی شیما شادمان",
+    "copyright": "Copyright © 2026 KhodeSushianm",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "vendor/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "normal",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Shadman-Academy-Panel-Setup-${version}.${ext}",
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "آکادمی شیما شادمان",
+      "uninstallDisplayName": "آکادمی شیما شادمان",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "displayLanguageSelector": false
+    }
   }
 }

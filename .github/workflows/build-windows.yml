@@ -1,0 +1,62 @@
+name: build-windows
+
+on:
+  push:
+    branches: [build/windows-installer]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installer
+        run: npm run dist:win
+
+      - name: Show output
+        shell: bash
+        run: ls -la release/
+
+      - name: Upload installer as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="v1.2.0-windows"
+          NOTES="بسته‌ی نصب ویندوز (x64) — نسخه‌ی 1.2.0
+
+          - نصب‌کننده‌ی NSIS با امکان انتخاب پوشه‌ی نصب
+          - میان‌بر دسکتاپ و منوی استارت
+          - بدون نیاز به اینترنت پس از نصب
+          - امضانشده: هنگام اجرا ممکن است پیام SmartScreen ببینید (روی More info → Run بزنید)
+
+          فایل: \`Shadman-Academy-Panel-Setup-1.2.0.exe\`"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/*.exe --clobber
+          else
+            gh release create "$TAG" release/*.exe \
+              --title "نسخه‌ی ویندوز 1.2.0" \
+              --notes "$NOTES"
+          fi
