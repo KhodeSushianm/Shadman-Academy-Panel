@@ -138,6 +138,36 @@ ipcMain.handle('db:info', async () => {
   return { folder: dbFolder, file: main, size, backupExists, source: lastLoadSource };
 });
 
+/* بازیابی از فایل پشتیبان:
+   ۱) فایل انتخاب و هدر SQLite اعتبارسنجی می‌شود — فایل خراب یا بی‌ربط رد می‌شود
+   ۲) فایل فعلی پیش از جایگزینی به .bak می‌رود (از طریق atomicWrite)
+   ۳) اگر پوشه‌ای انتخاب نشده باشد، پوشه‌ی والد فایلِ بازیابی adopt می‌شود */
+ipcMain.handle('db:restore', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'انتخاب فایل پشتیبان برای بازیابی',
+    filters: [
+      { name: 'پشتیبان دیتابیس', extensions: ['sqlite', 'db', 'bak'] },
+      { name: 'همه‌ی فایل‌ها', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths[0]) return { cancelled: true };
+  const chosen = result.filePaths[0];
+  let buf;
+  try { buf = fs.readFileSync(chosen); }
+  catch (e) { return { ok: false, reason: 'READ_FAILED', message: 'فایل قابل خواندن نیست' }; }
+  if (!isValidSqlite(buf)) return { ok: false, reason: 'INVALID_FILE', message: 'این فایل یک دیتابیس SQLite معتبر نیست' };
+  try {
+    if (!dbFolder) { dbFolder = path.dirname(chosen); writeConfig(); }
+    atomicWrite(dbFile(), buf);
+    lastLoadSource = 'file';
+    return { ok: true, data: buf.toString('base64'), file: dbFile() };
+  } catch (e) {
+    console.error('[db] بازیابی ناموفق بود:', e);
+    return { ok: false, reason: 'WRITE_FAILED', message: 'نوشتن فایل بازیابی‌شده ناموفق بود' };
+  }
+});
+
 ipcMain.handle('app:choose-initial-folder', async () => {
   if (dbFolder) return { folder: dbFolder };
   const result = await dialog.showOpenDialog(mainWindow, {

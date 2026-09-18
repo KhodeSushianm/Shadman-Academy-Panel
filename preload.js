@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseFolder:       ()      => ipcRenderer.invoke('db:choose-folder'),
   getStorageInfo:     ()      => ipcRenderer.invoke('db:info'),
   chooseInitialFolder: ()     => ipcRenderer.invoke('app:choose-initial-folder'),
+  restoreDatabase:     ()     => ipcRenderer.invoke('db:restore'),
 });
