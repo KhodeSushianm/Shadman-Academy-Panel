@@ -477,17 +477,56 @@ function chart(){
  const labels=rows.map(r=>`<span>${esc(r.title||'آزمون')}</span>`).join('');
  return `<div class="chart-box"><div style="font-size:23px;font-weight:800">${fmt(Math.round(latest))}</div><div class="chart"><svg viewBox="0 0 700 180" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#aaa095" stop-opacity=".18"/><stop offset="1" stop-color="#aaa095" stop-opacity="0"/></linearGradient></defs><polygon points="${area}" fill="url(#g)"/><polyline points="${p}" fill="none" stroke="#aaa095" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="chart-labels" style="grid-template-columns:repeat(${rows.length},1fr)">${labels}</div></div>`;
 }
+/* ── مرتب‌سازی ستون‌ها ──────────────────────────────────────────
+   وضعیت مرتب‌سازی برای هر صفحه جدا نگه داشته می‌شود و در localStorage
+   می‌ماند. متن‌ها با ترتیب فارسی مرتب می‌شوند (localeCompare با 'fa')،
+   نه ترتیب بایتی SQLite؛ و تاریخ‌های جلالی به‌صورت رشته‌ی هم‌عرض
+   مقایسه می‌شوند که برای فرمت YYYY/MM/DD درست است. */
+const SORT_DEFAULTS={students:{key:'id',dir:'desc'},plans:{key:'id',dir:'desc'},exams:{key:'id',dir:'desc'},notes:{key:'id',dir:'desc'}};
+let sortState=loadSortState();
+function loadSortState(){
+ try{const raw=ls.get('shima-sort-state');if(raw)return Object.assign(JSON.parse(JSON.stringify(SORT_DEFAULTS)),JSON.parse(raw))}catch(e){}
+ return JSON.parse(JSON.stringify(SORT_DEFAULTS));
+}
+function saveSortState(){ls.set('shima-sort-state',JSON.stringify(sortState))}
+function sortBy(page,key){
+ const st=sortState[page];if(!st)return;
+ if(st.key===key)st.dir=st.dir==='asc'?'desc':'asc';
+ else{st.key=key;st.dir='asc'}
+ saveSortState();render();
+}
+function sortArrow(page,key){
+ const st=sortState[page];
+ if(!st||st.key!==key)return '<span class="sort-idle">⇅</span>';
+ return st.dir==='asc'?'<span class="sort-on">▲</span>':'<span class="sort-on">▼</span>';
+}
+function thSort(page,key,label){return '<th class="th-sort" onclick="sortBy(\''+page+'\',\''+key+'\')">'+label+' '+sortArrow(page,key)+'</th>'}
+function sortRows(rows,page){
+ const st=sortState[page];if(!st)return rows;
+ const k=st.key,mul=st.dir==='asc'?1:-1;
+ const isJalali=/^14\d\d\/\d\d\/\d\d$/;
+ return rows.slice().sort(function(a,b){
+   const va=a[k],vb=b[k];
+   if(va==null&&vb==null)return 0;
+   if(va==null)return 1;
+   if(vb==null)return -1;
+   if(typeof va==='number'&&typeof vb==='number')return (va-vb)*mul;
+   const sa=String(va),sb=String(vb);
+   if(isJalali.test(sa)&&isJalali.test(sb))return (sa<sb?-1:sa>sb?1:0)*mul;
+   return sa.localeCompare(sb,'fa')*mul;
+ });
+}
 function studentTable(rows){
  if(!rows.length)return `<div class="empty"><i data-lucide="graduation-cap"></i><div>هنوز دانش‌آموزی ثبت نشده است.</div></div>`;
- return `<div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>پایه / رشته</th><th>مشاور</th><th>تراز</th><th>پیشرفت</th><th>وضعیت</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td onclick="openDrawer(${s.id})" style="cursor:pointer"><div class="student"><div class="avatar">${esc(initials(s))}</div><div><b>${esc(studentName(s))}</b><div class="small">${esc(s.phone)}</div></div></div></td><td>${esc(s.grade)} • ${esc(s.field)}</td><td>${esc(s.advisor||'—')}</td><td><b>${fmt(s.score)}</b></td><td><div class="progress"><i style="width:${s.progress||0}%"></i></div></td><td>${statusHtml(s.status)}</td><td><div class="row-actions"><button class="row-btn" title="ویرایش" onclick="openStudentModal(${s.id})"><i data-lucide="pencil"></i></button><button class="row-btn" title="حذف" onclick="deleteStudent(${s.id})"><i data-lucide="trash-2"></i></button></div></td></tr>`).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap"><table><thead><tr>${thSort('students','first_name','دانش‌آموز')}<th>پایه / رشته</th>${thSort('students','advisor','مشاور')}${thSort('students','score','تراز')}${thSort('students','progress','پیشرفت')}${thSort('students','status','وضعیت')}<th></th></tr></thead><tbody>${rows.map(s=>`<tr><td onclick="openDrawer(${s.id})" style="cursor:pointer"><div class="student"><div class="avatar">${esc(initials(s))}</div><div><b>${esc(studentName(s))}</b><div class="small">${esc(s.phone)}</div></div></div></td><td>${esc(s.grade)} • ${esc(s.field)}</td><td>${esc(s.advisor||'—')}</td><td><b>${fmt(s.score)}</b></td><td><div class="progress"><i style="width:${s.progress||0}%"></i></div></td><td>${statusHtml(s.status)}</td><td><div class="row-actions"><button class="row-btn" title="ویرایش" onclick="openStudentModal(${s.id})"><i data-lucide="pencil"></i></button><button class="row-btn" title="حذف" onclick="deleteStudent(${s.id})"><i data-lucide="trash-2"></i></button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 function studentsPage(){
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDENTS</div><h1 class="title">دانش‌آموزان</h1><div class="desc">مدیریت اطلاعات و وضعیت دانش‌آموزان مرکز.</div></div><button class="primary" onclick="openStudentModal()"><i data-lucide="plus"></i>افزودن دانش‌آموز</button></section><div class="card section-card"><div class="card-head"><div class="toolbar"><input id="studentSearch" class="search" placeholder="جستجوی نام، شماره یا رشته..." oninput="filterStudents(this.value)"><select class="filter" id="studentStatus" onchange="filterStudents(document.getElementById('studentSearch').value)"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="warning">نیاز به پیگیری</option><option value="inactive">غیرفعال</option></select></div></div><div id="studentsTable">${studentTable(q('SELECT * FROM students ORDER BY id DESC'))}</div></div></div>`;
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDENTS</div><h1 class="title">دانش‌آموزان</h1><div class="desc">مدیریت اطلاعات و وضعیت دانش‌آموزان مرکز.</div></div><button class="primary" onclick="openStudentModal()"><i data-lucide="plus"></i>افزودن دانش‌آموز</button></section><div class="card section-card"><div class="card-head"><div class="toolbar"><input id="studentSearch" class="search" placeholder="جستجوی نام، شماره یا رشته..." oninput="filterStudents(this.value)"><select class="filter" id="studentStatus" onchange="filterStudents(document.getElementById('studentSearch').value)"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="warning">نیاز به پیگیری</option><option value="inactive">غیرفعال</option></select></div></div><div id="studentsTable">${studentTable(sortRows(q('SELECT * FROM students'),'students'))}</div></div></div>`;
 }
 function filterStudents(term){
  const st=document.getElementById('studentStatus').value, t=(term||'').toLowerCase();
  let rows=q('SELECT * FROM students ORDER BY id DESC').filter(s=>(!st||s.status===st)&&(`${s.first_name} ${s.last_name} ${s.phone} ${s.field} ${s.grade}`.toLowerCase().includes(t)));
- document.getElementById('studentsTable').innerHTML=studentTable(rows);lucide.createIcons();
+ document.getElementById('studentsTable').innerHTML=studentTable(sortRows(rows,'students'));lucide.createIcons();
 }
 /* ── صفحه‌ی پیگیری‌ها ──────────────────────────────────────────
    صف کار روزانه: برنامه‌های انجام‌نشده‌ای که سررسیدشان رسیده
@@ -515,16 +554,16 @@ function followupsPage(){
  </div>`;
 }
 function plansPage(){
- const rows=q(`SELECT p.*,s.first_name,s.last_name FROM plans p JOIN students s ON s.id=p.student_id ORDER BY p.id DESC`);
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDY PLANS</div><h1 class="title">برنامه‌های مطالعاتی</h1><div class="desc">برنامه‌های روزانه و وضعیت اجرای آن‌ها.</div></div><button class="primary" onclick="openPlanModal()"><i data-lucide="plus"></i>برنامه جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>تاریخ</th><th>درس</th><th>عنوان</th><th>مدت</th><th>وضعیت</th><th></th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.first_name+' '+p.last_name)}</td><td>${esc(p.date)}</td><td>${esc(p.subject)}</td><td>${esc(p.title)}</td><td>${fmt(p.duration)} دقیقه</td><td><button class="link-btn" onclick="togglePlan(${p.id})">${p.status==='done'?'<span class="status active">انجام شده</span>':'<span class="status warning">در انتظار</span>'}</button></td><td><button class="row-btn" onclick="deletePlan(${p.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ const rows=sortRows(q(`SELECT p.*,s.first_name,s.last_name FROM plans p JOIN students s ON s.id=p.student_id`),'plans');
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDY PLANS</div><h1 class="title">برنامه‌های مطالعاتی</h1><div class="desc">برنامه‌های روزانه و وضعیت اجرای آن‌ها.</div></div><button class="primary" onclick="openPlanModal()"><i data-lucide="plus"></i>برنامه جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('plans','first_name','دانش‌آموز')}${thSort('plans','date','تاریخ')}${thSort('plans','subject','درس')}${thSort('plans','title','عنوان')}${thSort('plans','duration','مدت')}${thSort('plans','status','وضعیت')}<th></th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.first_name+' '+p.last_name)}</td><td>${esc(p.date)}</td><td>${esc(p.subject)}</td><td>${esc(p.title)}</td><td>${fmt(p.duration)} دقیقه</td><td><button class="link-btn" onclick="togglePlan(${p.id})">${p.status==='done'?'<span class="status active">انجام شده</span>':'<span class="status warning">در انتظار</span>'}</button></td><td><button class="row-btn" onclick="deletePlan(${p.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function examsPage(){
- const rows=q(`SELECT e.*,s.first_name,s.last_name FROM exams e JOIN students s ON s.id=e.student_id ORDER BY e.id DESC`);
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">EXAMS</div><h1 class="title">آزمون‌ها</h1><div class="desc">ثبت نتایج و مشاهده عملکرد آزمون‌ها.</div></div><button class="primary" onclick="openExamModal()"><i data-lucide="plus"></i>ثبت آزمون</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>آزمون</th><th>تاریخ</th><th>تراز</th><th></th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.first_name+' '+e.last_name)}</td><td>${esc(e.title)}</td><td>${esc(e.date)}</td><td><b>${fmt(e.score)}</b></td><td><button class="row-btn" onclick="deleteExam(${e.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ const rows=sortRows(q(`SELECT e.*,s.first_name,s.last_name FROM exams e JOIN students s ON s.id=e.student_id`),'exams');
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">EXAMS</div><h1 class="title">آزمون‌ها</h1><div class="desc">ثبت نتایج و مشاهده عملکرد آزمون‌ها.</div></div><button class="primary" onclick="openExamModal()"><i data-lucide="plus"></i>ثبت آزمون</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('exams','first_name','دانش‌آموز')}${thSort('exams','title','آزمون')}${thSort('exams','date','تاریخ')}${thSort('exams','score','تراز')}<th></th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.first_name+' '+e.last_name)}</td><td>${esc(e.title)}</td><td>${esc(e.date)}</td><td><b>${fmt(e.score)}</b></td><td><button class="row-btn" onclick="deleteExam(${e.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function notesPage(){
- const rows=q(`SELECT n.*,s.first_name,s.last_name FROM notes n JOIN students s ON s.id=n.student_id ORDER BY n.id DESC`);
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>یادداشت</th><th>تاریخ</th><th></th></tr></thead><tbody>${rows.map(n=>`<tr><td><b>${esc(n.first_name+' '+n.last_name)}</b></td><td style="white-space:normal;max-width:650px">${esc(n.text)}</td><td>${esc(n.date)}</td><td><button class="row-btn" onclick="deleteNote(${n.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ const rows=sortRows(q(`SELECT n.*,s.first_name,s.last_name FROM notes n JOIN students s ON s.id=n.student_id`),'notes');
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('notes','first_name','دانش‌آموز')}<th>یادداشت</th>${thSort('notes','date','تاریخ')}<th></th></tr></thead><tbody>${rows.map(n=>`<tr><td><b>${esc(n.first_name+' '+n.last_name)}</b></td><td style="white-space:normal;max-width:650px">${esc(n.text)}</td><td>${esc(n.date)}</td><td><button class="row-btn" onclick="deleteNote(${n.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function settingsPage(){
  return `<div class="page"><section class="page-head"><div><div class="eyebrow">SETTINGS</div><h1 class="title">تنظیمات</h1><div class="desc">محل ذخیره‌سازی دیتابیس و ظاهر پنل.</div></div></section><div class="card section-card"><div class="card-head"><div><div class="card-title">محل ذخیره‌سازی</div><div class="card-sub">یک پوشه روی کامپیوتر مشاور برای فایل SQLite انتخاب کنید.</div></div><button class="secondary" onclick="chooseStorageFolder()"><i data-lucide="folder-open"></i> انتخاب پوشه</button></div><div id="storageInfo" style="padding:18px;font-size:10px;color:var(--muted)">در حال بررسی محل ذخیره‌سازی...</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">ظاهر</div><div class="card-sub">حالت نمایش پنل</div></div><button class="secondary" onclick="toggleTheme()">تغییر حالت</button></div><div style="padding:18px;font-size:10px;color:var(--muted)">اطلاعات پنل مستقیماً از فایل SQLite انتخاب‌شده خوانده و در همان فایل ذخیره می‌شود.</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">داده‌ها</div><div class="card-sub">پشتیبان‌گیری و بازنشانی</div></div><div style="display:flex;gap:7px"><button class="secondary" onclick="exportDB()">خروجی دیتابیس</button><button class="secondary" onclick="restoreDB()"><i data-lucide="archive-restore"></i> بازیابی از فایل</button><button class="secondary danger" onclick="resetDB()">بازنشانی داده‌ها</button></div></div></div></div>`;
@@ -931,6 +970,10 @@ body{
 th{font-size:var(--fs-2xs);color:var(--muted);font-weight:600;letter-spacing:.02em}
 td{font-size:var(--fs-sm);color:var(--text-2)}
 td b,td strong{color:var(--text)}
+.th-sort{cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap}
+.th-sort:hover{color:var(--text)}
+.sort-on{color:var(--accent)}
+.sort-idle{color:var(--muted)}
 .small{font-size:var(--fs-2xs);color:var(--muted)}
 .status{font-size:var(--fs-2xs);font-weight:600}
 .empty{font-size:var(--fs-sm);color:var(--muted)}
