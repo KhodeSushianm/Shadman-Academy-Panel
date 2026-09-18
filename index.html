@@ -255,7 +255,7 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 </aside>
 
 <main class="main">
-<header class="topbar"><div class="crumb" id="crumb">Workspace / داشبورد</div><div class="top-actions"><button class="icon-btn mobile" onclick="toggleSidebar()"><i data-lucide="menu"></i></button><button class="icon-btn" onclick="focusSearch()"><i data-lucide="search"></i></button><button class="icon-btn" onclick="toggleTheme()"><i data-lucide="sun-moon"></i></button><button class="icon-btn" onclick="toast('اعلان جدیدی ندارید')"><i data-lucide="bell"></i></button></div></header>
+<header class="topbar"><div class="crumb" id="crumb">Workspace / داشبورد</div><span class="save-state" id="saveState" hidden></span><div class="top-actions"><button class="icon-btn mobile" onclick="toggleSidebar()"><i data-lucide="menu"></i></button><button class="icon-btn" onclick="focusSearch()"><i data-lucide="search"></i></button><button class="icon-btn" onclick="toggleTheme()"><i data-lucide="sun-moon"></i></button><button class="icon-btn" onclick="toast('اعلان جدیدی ندارید')"><i data-lucide="bell"></i></button></div></header>
 <div class="content" id="app"></div>
 </main>
 </div>
@@ -344,15 +344,35 @@ function dbBase64(){const data=db.export();let s='';for(let i=0;i<data.length;i+
 let persistTimer=null;
 /* نوشتن کامل فایل روی هر تغییر، هم کند است و هم پنجره‌ی خرابی فایل را بزرگ می‌کند.
    تغییرات پیاپی در یک نوشتن ادغام می‌شوند و پیش از بستن صفحه flushed می‌شوند. */
-function persist(){clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,400)}
+/* ── نشانگر وضعیت ذخیره‌سازی ───────────────────────────────────
+   نوشتن دیتابیس زمان‌بندی‌شده و ناهمزمان است؛ کاربر پیش از این هیچ
+   بازخوردی نمی‌گرفت و شکست ذخیره‌سازی فقط در console می‌رفت. اکنون
+   سه حالت در نوار بالا دیده می‌شود و خطا additionally توست می‌گیرد. */
+let saveStateTimer=null;
+function setSaveState(kind){
+ const el=document.getElementById('saveState');if(!el)return;
+ clearTimeout(saveStateTimer);
+ if(!kind){el.hidden=true;el.textContent='';el.className='save-state';return}
+ const map={pending:['در حال ذخیره…','is-pending'],saving:['در حال ذخیره…','is-pending'],
+            saved:['ذخیره شد ✓','is-saved'],error:['خطا در ذخیره‌سازی','is-error']};
+ const m=map[kind]||map.saved;
+ el.hidden=false;el.textContent=m[0];el.className='save-state '+m[1];
+ if(kind==='saved')saveStateTimer=setTimeout(()=>{el.hidden=true},2500);
+}
+function persist(){clearTimeout(persistTimer);setSaveState('pending');persistTimer=setTimeout(persistNow,400)}
 function persistNow(){
  clearTimeout(persistTimer);persistTimer=null;
  if(!db)return;
+ setSaveState('saving');
+ const fail=(reason)=>{setSaveState('error');toast('ذخیره‌سازی انجام نشد'+(reason?' ('+reason+')':'')+' — داده‌ها فقط در حافظه‌اند',{duration:5000})};
  try{
   const value=dbBase64();
-  if(window.electronAPI) window.electronAPI.saveDatabase(value).then(r=>{if(r&&!r.ok)console.error('[db] ذخیره‌سازی ناموفق:',r.reason,r.message||'')}).catch(console.error);
-  else ls.set(STORAGE,value);
- }catch(e){console.error('[db] خطا در persist:',e)}
+  if(window.electronAPI) window.electronAPI.saveDatabase(value).then(r=>{
+    if(r&&!r.ok){console.error('[db] ذخیره‌سازی ناموفق:',r.reason,r.message||'');fail(r.reason)}
+    else setSaveState('saved');
+  }).catch(e=>{console.error(e);fail()});
+  else{ls.set(STORAGE,value);setSaveState('saved')}
+ }catch(e){console.error('[db] خطا در persist:',e);fail()}
 }
 function flushPersist(){if(persistTimer)persistNow()}
 window.addEventListener('beforeunload',flushPersist);
@@ -745,6 +765,10 @@ body{
 .user-name{font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
 .user-sub{font-size:var(--fs-2xs);color:var(--muted)}
 .crumb{font-size:var(--fs-xs);color:var(--muted)}
+.save-state{font-size:var(--fs-2xs);color:var(--muted);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.save-state.is-saved{color:var(--green)}
+.save-state.is-error{color:var(--red);font-weight:700}
+.save-state.is-pending{color:var(--muted)}
 .eyebrow{font-size:var(--fs-2xs);color:var(--accent);font-weight:700}
 .title{font-size:var(--fs-2xl);color:var(--text);letter-spacing:-.4px}
 .desc{font-size:var(--fs-sm);color:var(--muted)}
