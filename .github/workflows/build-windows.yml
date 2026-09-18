@@ -53,8 +53,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          TAG="v1.2.0-windows"
-          NOTES="بسته‌ی نصب ویندوز (x64) — نسخه‌ی 1.2.0
+          VER=$(node -p "require('./package.json').version")
+          TAG="v${VER}-windows"
+          NOTES="بسته‌ی نصب ویندوز (x64) — نسخه‌ی ${VER}
 
           - نصب‌کننده‌ی NSIS با امکان انتخاب پوشه‌ی نصب
           - میان‌بر دسکتاپ و منوی استارت

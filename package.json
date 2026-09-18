@@ -1,7 +1,7 @@
 {
   "name": "shima-academy-panel",
   "productName": "آکادمی شیما شادمان",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "پنل مدیریت آموزشی آکادمی شیما شادمان — اپلیکیشن رومیزی Electron با دیتابیس SQLite فایل‌محور، کاملاً آفلاین",
   "main": "main.js",
   "private": true,
