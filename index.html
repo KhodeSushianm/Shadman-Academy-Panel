@@ -326,20 +326,60 @@ async function init(){
  render();
  lucide.createIcons();
  updateStorageInfo();
+ if(migrationNotice)toast(migrationNotice,{duration:6000});
 }
-function createDB(){
- db=new SQL.Database();
- db.run(`CREATE TABLE students(id INTEGER PRIMARY KEY,first_name TEXT,last_name TEXT,phone TEXT,grade TEXT,field TEXT,advisor TEXT,status TEXT,score INTEGER,progress INTEGER,created_at TEXT);
+/* ── نسخه‌بندی schema و مهاجرت ─────────────────────────────────
+   نسخه‌ی ساختار دیتابیس در خود SQLite نگه داشته می‌شود
+   (PRAGMA user_version). هر تغییر آینده‌ی ساختار یک مهاجرت شماره‌دار
+   است که به‌ترتیب و داخل تراکنش اجرا می‌شود؛ پس دیتابیس کاربران قدیمی
+   بی‌صدا نمی‌شکند و تغییرات ساختاری قابل برگشت‌اند. */
+const SCHEMA_VERSION=1;
+const MIGRATIONS=[
+ {version:1,up(d){
+   d.run(`CREATE TABLE students(id INTEGER PRIMARY KEY,first_name TEXT,last_name TEXT,phone TEXT,grade TEXT,field TEXT,advisor TEXT,status TEXT,score INTEGER,progress INTEGER,created_at TEXT);
  CREATE TABLE plans(id INTEGER PRIMARY KEY,student_id INTEGER,date TEXT,subject TEXT,title TEXT,duration INTEGER,status TEXT);
  CREATE TABLE exams(id INTEGER PRIMARY KEY,student_id INTEGER,title TEXT,date TEXT,score INTEGER);
  CREATE TABLE notes(id INTEGER PRIMARY KEY,student_id INTEGER,text TEXT,date TEXT);`);
+ }},
+];
+function schemaVersion(d){
+ try{const r=d.exec('PRAGMA user_version');return (r.length&&r[0].values.length)?r[0].values[0][0]:0}catch(e){return 0}
+}
+function hasLegacyTables(d){
+ try{const r=d.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='students'");return !!(r.length&&r[0].values.length)}catch(e){return false}
+}
+function runMigrations(d,fromVersion){
+ for(const m of MIGRATIONS){
+   if(m.version<=fromVersion)continue;
+   d.run('BEGIN');
+   try{m.up(d);d.run('PRAGMA user_version='+m.version);d.run('COMMIT')}
+   catch(e){try{d.run('ROLLBACK')}catch(_){}throw e}
+ }
+}
+let migrationNotice=null;
+function createDB(){
+ db=new SQL.Database();
+ runMigrations(db,0);
  for(const s of seedData.students) db.run(`INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)`,[s.id,s.first_name,s.last_name,s.phone,s.grade,s.field,s.advisor,s.status,s.score,s.progress,todayJalali()]);
  for(const p of seedData.plans) db.run(`INSERT INTO plans VALUES(?,?,?,?,?,?,?)`,[p.id,p.student_id,p.date,p.subject,p.title,p.duration,p.status]);
  for(const e of seedData.exams) db.run(`INSERT INTO exams VALUES(?,?,?,?,?)`,[e.id,e.student_id,e.title,e.date,e.score]);
  for(const n of seedData.notes) db.run(`INSERT INTO notes VALUES(?,?,?,?)`,[n.id,n.student_id,n.text,n.date]);
  persist();
 }
-function migrate(){persist()}
+function migrate(){
+ const v=schemaVersion(db);
+ if(v===0){
+   /* دیتابیس قدیمیِ پیش از نسخه‌بندی: جدول‌ها هست، فقط مُهر ندارد */
+   if(hasLegacyTables(db)){try{db.run('PRAGMA user_version='+SCHEMA_VERSION)}catch(e){console.error('[migrate] مُهر نسخه ناموفق:',e)}}
+   else runMigrations(db,0);
+ }else if(v<SCHEMA_VERSION){
+   runMigrations(db,v);
+ }else if(v>SCHEMA_VERSION){
+   /* فایلِ نسخه‌ی جدیدتر برنامه: دست نمی‌زنیم تا داده خراب نشود */
+   migrationNotice='این فایل با نسخه‌ی جدیدتری از برنامه ساخته شده است؛ برای جلوگیری از خرابی داده، بدون تغییر باز شد.';
+ }
+ persist();
+}
 function dbBase64(){const data=db.export();let s='';for(let i=0;i<data.length;i+=0x8000)s+=String.fromCharCode(...data.subarray(i,i+0x8000));return btoa(s)}
 let persistTimer=null;
 /* نوشتن کامل فایل روی هر تغییر، هم کند است و هم پنجره‌ی خرابی فایل را بزرگ می‌کند.
