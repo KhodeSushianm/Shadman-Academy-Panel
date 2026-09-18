@@ -256,7 +256,7 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 </aside>
 
 <main class="main">
-<header class="topbar"><div class="crumb" id="crumb">Workspace / داشبورد</div><span class="save-state" id="saveState" hidden></span><div class="top-actions"><button class="icon-btn mobile" onclick="toggleSidebar()"><i data-lucide="menu"></i></button><button class="icon-btn" onclick="focusSearch()"><i data-lucide="search"></i></button><button class="icon-btn" onclick="toggleTheme()"><i data-lucide="sun-moon"></i></button><button class="icon-btn" onclick="toast('اعلان جدیدی ندارید')"><i data-lucide="bell"></i></button></div></header>
+<header class="topbar"><div class="crumb" id="crumb">Workspace / داشبورد</div><span class="save-state" id="saveState" hidden></span><div class="top-actions"><button class="icon-btn mobile" onclick="toggleSidebar()"><i data-lucide="menu"></i></button><button class="icon-btn" onclick="focusSearch()"><i data-lucide="search"></i></button><button class="icon-btn" onclick="toggleTheme()"><i data-lucide="sun-moon"></i></button><button class="icon-btn" id="bellBtn" onclick="toggleNotifPanel()" aria-label="اعلان‌ها"><i data-lucide="bell"></i><span class="badge" id="notifBadge" hidden></span></button></div></header>
 <div class="content" id="app"></div>
 </main>
 </div>
@@ -264,6 +264,8 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 <div class="modal-back" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-head"><div class="modal-title" id="modalTitle"></div><button class="close" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body" id="modalBody"></div></div></div>
 <div class="drawer-back" id="drawerBack" onclick="closeDrawer()"></div><aside class="drawer" id="drawer"><div class="drawer-head"><b id="drawerTitle">پروفایل دانش‌آموز</b><button class="close" onclick="closeDrawer()"><i data-lucide="x"></i></button></div><div class="drawer-body" id="drawerBody"></div></aside>
 <div class="toast" id="toast"></div>
+<div class="notif-back" id="notifBack" onclick="closeNotifPanel()"></div>
+<aside class="notif-panel" id="notifPanel" role="dialog" aria-label="اعلان‌ها"></aside>
 
 <script>
 let SQL, db, currentPage='dashboard', editingId=null, toastTimer;
@@ -442,6 +444,7 @@ function render(){
  document.getElementById('crumb').textContent='Workspace / '+names[currentPage];
  document.getElementById('studentCount').textContent=fmt(q('SELECT COUNT(*) n FROM students')[0].n);
  document.getElementById('followupCount').textContent=fmt(followupTotal());
+ updateNotifBadge();
  lucide.createIcons();
 }
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page;render();closeDrawer();document.getElementById('sidebar').classList.remove('open')});
@@ -724,6 +727,51 @@ function undoLastDelete(){
  if(!fn)return false;
  fn();return true;
 }
+/* ── اعلان‌های واقعی ───────────────────────────────────────────
+   پیش از این زنگ فقط یک پیام ثابت می‌داد. اکنون بج و پنل از داده‌ی
+   واقعی حساب می‌شوند و با صف «پیگیری‌ها» هم‌منبع‌اند تا هرگز
+   ضدونقیض نباشند. */
+function notifications(){
+ const t=todayJalali();
+ const overdue=q(`SELECT p.id,p.subject,p.title,p.date,s.first_name,s.last_name,s.id AS student_id
+                  FROM plans p JOIN students s ON s.id=p.student_id
+                  WHERE p.status='pending' AND p.date<? ORDER BY p.date ASC`,[t]);
+ const today=q(`SELECT p.id,p.subject,p.title,p.date,s.first_name,s.last_name,s.id AS student_id
+                FROM plans p JOIN students s ON s.id=p.student_id
+                WHERE p.status='pending' AND p.date=? ORDER BY p.id DESC`,[t]);
+ const warns=q(`SELECT id,first_name,last_name FROM students WHERE status='warning' ORDER BY id DESC`);
+ return {overdue,today,warns,total:overdue.length+today.length+warns.length};
+}
+function updateNotifBadge(){
+ const b=document.getElementById('notifBadge');if(!b)return;
+ const n=notifications().total;
+ if(n>0){b.textContent=fmt(n);b.hidden=false}else{b.hidden=true}
+}
+function renderNotifPanel(){
+ const n=notifications();
+ const el=document.getElementById('notifPanel');
+ const goFollow="closeNotifPanel();currentPage='followups';render()";
+ const item=(ico,cls,title,sub,fn)=>`<button class="notif-item" onclick="${fn}"><span class="notif-ico ${cls}"><i data-lucide="${ico}"></i></span><span><span class="notif-title">${title}</span><div class="notif-sub">${sub}</div></span></button>`;
+ let rows='';
+ for(const p of n.overdue)rows+=item('calendar-x','red',esc(p.first_name+' '+p.last_name),'برنامه‌ی عقب‌افتاده: '+esc(p.subject)+' — '+esc(p.date),goFollow);
+ for(const p of n.today)rows+=item('calendar-clock','amber',esc(p.first_name+' '+p.last_name),'برنامه‌ی امروز: '+esc(p.subject),goFollow);
+ for(const st of n.warns)rows+=item('user-search','blue',esc(st.first_name+' '+st.last_name),'نیازمند پیگیری','closeNotifPanel();openDrawer('+st.id+')');
+ el.innerHTML=`<div class="notif-head"><span>اعلان‌ها</span><span class="notif-sub">${fmt(n.total)} مورد</span></div>
+ <div class="notif-list">${rows||'<div class="empty"><i data-lucide="bell-off"></i><div>همه‌چیز آرام است ✅</div></div>'}</div>
+ <div class="notif-foot"><button class="link-btn" onclick="${goFollow}">مشاهده‌ی همه ←</button></div>`;
+ lucide.createIcons();
+}
+function toggleNotifPanel(){
+ const el=document.getElementById('notifPanel'),back=document.getElementById('notifBack');
+ const open=!el.classList.contains('show');
+ if(open)renderNotifPanel();
+ el.classList.toggle('show',open);back.classList.toggle('show',open);
+}
+function closeNotifPanel(){
+ const el=document.getElementById('notifPanel'),back=document.getElementById('notifBack');
+ if(el)el.classList.remove('show');
+ if(back)back.classList.remove('show');
+}
 function toggleTheme(){document.body.classList.toggle('light');ls.set('shima-theme',document.body.classList.contains('light')?'light':'dark')}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
 function focusSearch(){if(currentPage!=='students'){currentPage='students';render()}setTimeout(()=>document.getElementById('studentSearch')?.focus(),50)}
@@ -807,7 +855,7 @@ async function restoreDB(){
  input.click();
 }
 function resetDB(){if(!confirm('همه‌ی داده‌ها برای همیشه حذف شوند؟\n\nاین عمل قابل بازگشت نیست. پیشنهاد می‌شود پیش از ادامه، با «خروجی دیتابیس» یک پشتیبان بگیرید.'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer();closeNotifPanel()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
 if(ls.get('shima-theme')==='light')document.body.classList.add('light');
 init();
 </script>
@@ -846,6 +894,7 @@ init();
   --green:#7ad6a4; --green-soft:rgba(122,214,164,.16);
   --amber:#f2c464; --amber-soft:rgba(242,196,100,.16);
   --red:#ff9d9d;   --red-soft:rgba(255,157,157,.16);
+  --on-red:#201010;
   --blue:#8fc1f7;  --blue-soft:rgba(143,193,247,.16);
 
   --scroll-thumb:#525c66;
@@ -900,6 +949,7 @@ body.light{
   --green:#136c45; --green-soft:rgba(19,108,69,.12);
   --amber:#845100; --amber-soft:rgba(132,81,0,.12);
   --red:#b02a24;   --red-soft:rgba(176,42,36,.11);
+  --on-red:#ffffff;
   --blue:#15589b;  --blue-soft:rgba(21,88,155,.11);
 
   --scroll-thumb:#a8a39a;
@@ -1057,6 +1107,42 @@ td b,td strong{color:var(--text)}
 .icon-btn{color:var(--muted)}
 .icon-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
 .icon-btn svg{width:17px;height:17px}
+.icon-btn{position:relative}
+.badge{
+  position:absolute;top:3px;left:3px;min-width:16px;height:16px;padding:0 4px;
+  border-radius:99px;background:var(--red);color:var(--on-red);
+  font-size:10px;font-weight:700;display:grid;place-items:center;line-height:1;
+}
+.notif-back{position:fixed;inset:0;background:transparent;z-index:80;display:none}
+.notif-back.show{display:block}
+.notif-panel{
+  position:fixed;top:74px;left:22px;width:min(360px,92vw);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow-2);
+  z-index:85;display:none;overflow:hidden;
+}
+.notif-panel.show{display:block}
+.notif-head{
+  padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);
+  font-size:var(--fs-sm);font-weight:700;color:var(--text);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.notif-list{max-height:320px;overflow:auto}
+.notif-item{
+  display:flex;gap:10px;align-items:center;width:100%;text-align:right;
+  padding:10px 14px;border:0;border-bottom:1px solid var(--border);
+  background:transparent;color:var(--text-2);font:inherit;cursor:pointer;
+}
+.notif-item:hover{background:var(--surface-hover);color:var(--text)}
+.notif-item:last-child{border-bottom:0}
+.notif-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+.notif-ico svg{width:15px;height:15px}
+.notif-ico.red{background:var(--red-soft);color:var(--red)}
+.notif-ico.amber{background:var(--amber-soft);color:var(--amber)}
+.notif-ico.blue{background:var(--blue-soft);color:var(--blue)}
+.notif-title{font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.notif-sub{font-size:var(--fs-2xs);color:var(--muted);margin-top:2px}
+.notif-foot{padding:10px 14px;border-top:1px solid var(--border);background:var(--surface-2)}
 
 /* ── ) کارت‌ها و آمار ────────────────────────────────────── */
 .card,.stat{
