@@ -257,7 +257,7 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
 
 <main class="main">
 <header class="topbar"><div class="crumb" id="crumb">Workspace / داشبورد</div><span class="save-state" id="saveState" hidden></span><div class="top-actions"><button class="icon-btn mobile" onclick="toggleSidebar()"><i data-lucide="menu"></i></button><button class="icon-btn" onclick="focusSearch()"><i data-lucide="search"></i></button><button class="icon-btn" onclick="toggleTheme()"><i data-lucide="sun-moon"></i></button><button class="icon-btn" id="bellBtn" onclick="toggleNotifPanel()" aria-label="اعلان‌ها"><i data-lucide="bell"></i><span class="badge" id="notifBadge" hidden></span></button></div></header>
-<div class="content" id="app"></div>
+<div class="content" id="app"><div class="app-splash"><span class="splash-spin"></span><div>در حال آماده‌سازی…</div></div></div>
 </main>
 </div>
 
@@ -312,6 +312,15 @@ function sqlJsConfig(){
  return cfg;
 }
 async function init(){
+ try{await initApp()}
+ catch(e){
+  console.error('[init] راه‌اندازی ناموفق:',e);
+  const app=document.getElementById('app');
+  if(app)app.innerHTML=`<div class="app-error"><i data-lucide="alert-triangle"></i><div class="app-error-title">راه‌اندازی پنل ناموفق بود</div><div class="app-error-sub">${esc(String(e&&e.message||e))}</div><button class="primary" onclick="location.reload()"><i data-lucide="rotate-ccw"></i> تلاش دوباره</button></div>`;
+  if(window.lucide)lucide.createIcons();
+ }
+}
+async function initApp(){
  SQL=await initSqlJs(sqlJsConfig());
  let saved=null;
  if(window.electronAPI){
@@ -576,17 +585,23 @@ function followupsPage(){
  </div>
  </div>`;
 }
+function emptyState(icon,title,sub){
+ return `<div class="empty"><i data-lucide="${icon}"></i><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
+}
 function plansPage(){
  const rows=sortRows(q(`SELECT p.*,s.first_name,s.last_name FROM plans p JOIN students s ON s.id=p.student_id`),'plans');
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDY PLANS</div><h1 class="title">برنامه‌های مطالعاتی</h1><div class="desc">برنامه‌های روزانه و وضعیت اجرای آن‌ها.</div></div><button class="primary" onclick="openPlanModal()"><i data-lucide="plus"></i>برنامه جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('plans','first_name','دانش‌آموز')}${thSort('plans','date','تاریخ')}${thSort('plans','subject','درس')}${thSort('plans','title','عنوان')}${thSort('plans','duration','مدت')}${thSort('plans','status','وضعیت')}<th></th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.first_name+' '+p.last_name)}</td><td>${esc(p.date)}</td><td>${esc(p.subject)}</td><td>${esc(p.title)}</td><td>${fmt(p.duration)} دقیقه</td><td><button class="link-btn" onclick="togglePlan(${p.id})">${p.status==='done'?'<span class="status active">انجام شده</span>':'<span class="status warning">در انتظار</span>'}</button></td><td><button class="row-btn" onclick="deletePlan(${p.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ if(!rows.length)return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDY PLANS</div><h1 class="title">برنامه‌های مطالعاتی</h1><div class="desc">برنامه‌های روزانه و وضعیت اجرای آن‌ها.</div></div><button class="primary" onclick="openPlanModal()"><i data-lucide="plus"></i>برنامه جدید</button></section><div class="card section-card">${emptyState('calendar-days','هنوز برنامه‌ای ثبت نشده است','وقتی برنامه‌ای ثبت کنید، اینجا با وضعیت «انجام شده / در انتظار» نمایش داده می‌شود.')}</div></div>`;
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">STUDY PLANS</div><h1 class="title">برنامه‌های مطالعاتی</h1><div class="desc">برنامه‌های روزانه و وضعیت اجرای آن‌ها.</div></div><button class="primary" onclick="openPlanModal()"><i data-lucide="plus"></i>برنامه جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>تاریخ</th><th>درس</th><th>عنوان</th><th>مدت</th><th>وضعیت</th><th></th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.first_name+' '+p.last_name)}</td><td>${esc(p.date)}</td><td>${esc(p.subject)}</td><td>${esc(p.title)}</td><td>${fmt(p.duration)} دقیقه</td><td><button class="link-btn" onclick="togglePlan(${p.id})">${p.status==='done'?'<span class="status active">انجام شده</span>':'<span class="status warning">در انتظار</span>'}</button></td><td><button class="row-btn" onclick="deletePlan(${p.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function examsPage(){
  const rows=sortRows(q(`SELECT e.*,s.first_name,s.last_name FROM exams e JOIN students s ON s.id=e.student_id`),'exams');
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">EXAMS</div><h1 class="title">آزمون‌ها</h1><div class="desc">ثبت نتایج و مشاهده عملکرد آزمون‌ها.</div></div><button class="primary" onclick="openExamModal()"><i data-lucide="plus"></i>ثبت آزمون</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('exams','first_name','دانش‌آموز')}${thSort('exams','title','آزمون')}${thSort('exams','date','تاریخ')}${thSort('exams','score','تراز')}<th></th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.first_name+' '+e.last_name)}</td><td>${esc(e.title)}</td><td>${esc(e.date)}</td><td><b>${fmt(e.score)}</b></td><td><button class="row-btn" onclick="deleteExam(${e.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ if(!rows.length)return `<div class="page"><section class="page-head"><div><div class="eyebrow">EXAMS</div><h1 class="title">آزمون‌ها</h1><div class="desc">ثبت نتایج و مشاهده عملکرد آزمون‌ها.</div></div><button class="primary" onclick="openExamModal()"><i data-lucide="plus"></i>ثبت آزمون</button></section><div class="card section-card">${emptyState('notebook-pen','هنوز آزمونی ثبت نشده است','با ثبت اولین آزمون، نمودار روند تراز هم فعال می‌شود.')}</div></div>`;
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">EXAMS</div><h1 class="title">آزمون‌ها</h1><div class="desc">ثبت نتایج و مشاهده عملکرد آزمون‌ها.</div></div><button class="primary" onclick="openExamModal()"><i data-lucide="plus"></i>ثبت آزمون</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>آزمون</th><th>تاریخ</th><th>تراز</th><th></th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.first_name+' '+e.last_name)}</td><td>${esc(e.title)}</td><td>${esc(e.date)}</td><td><b>${fmt(e.score)}</b></td><td><button class="row-btn" onclick="deleteExam(${e.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function notesPage(){
  const rows=sortRows(q(`SELECT n.*,s.first_name,s.last_name FROM notes n JOIN students s ON s.id=n.student_id`),'notes');
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr>${thSort('notes','first_name','دانش‌آموز')}<th>یادداشت</th>${thSort('notes','date','تاریخ')}<th></th></tr></thead><tbody>${rows.map(n=>`<tr><td><b>${esc(n.first_name+' '+n.last_name)}</b></td><td style="white-space:normal;max-width:650px">${esc(n.text)}</td><td>${esc(n.date)}</td><td><button class="row-btn" onclick="deleteNote(${n.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+ if(!rows.length)return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card">${emptyState('sticky-note','هنوز یادداشتی ثبت نشده است','یادداشت‌های پیگیری هر دانش‌آموز اینجا بایگانی می‌شوند.')}</div></div>`;
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>یادداشت</th><th>تاریخ</th><th></th></tr></thead><tbody>${rows.map(n=>`<tr><td><b>${esc(n.first_name+' '+n.last_name)}</b></td><td style="white-space:normal;max-width:650px">${esc(n.text)}</td><td>${esc(n.date)}</td><td><button class="row-btn" onclick="deleteNote(${n.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function settingsPage(){
  return `<div class="page"><section class="page-head"><div><div class="eyebrow">SETTINGS</div><h1 class="title">تنظیمات</h1><div class="desc">محل ذخیره‌سازی دیتابیس و ظاهر پنل.</div></div></section><div class="card section-card"><div class="card-head"><div><div class="card-title">محل ذخیره‌سازی</div><div class="card-sub">یک پوشه روی کامپیوتر مشاور برای فایل SQLite انتخاب کنید.</div></div><button class="secondary" onclick="chooseStorageFolder()"><i data-lucide="folder-open"></i> انتخاب پوشه</button></div><div id="storageInfo" style="padding:18px;font-size:10px;color:var(--muted)">در حال بررسی محل ذخیره‌سازی...</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">ظاهر</div><div class="card-sub">حالت نمایش پنل</div></div><button class="secondary" onclick="toggleTheme()">تغییر حالت</button></div><div style="padding:18px;font-size:10px;color:var(--muted)">اطلاعات پنل مستقیماً از فایل SQLite انتخاب‌شده خوانده و در همان فایل ذخیره می‌شود.</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">داده‌ها</div><div class="card-sub">پشتیبان‌گیری و بازنشانی</div></div><div style="display:flex;gap:7px"><button class="secondary" onclick="exportDB()">خروجی دیتابیس</button><button class="secondary" onclick="restoreDB()"><i data-lucide="archive-restore"></i> بازیابی از فایل</button><button class="secondary danger" onclick="resetDB()">بازنشانی داده‌ها</button></div></div></div></div>`;
@@ -1159,6 +1174,8 @@ td b,td strong{color:var(--text)}
 
 /* ── ۹) جدول ──────────────────────────────────────────────── */
 table{min-width:760px}
+.table-wrap{max-height:62vh;overflow:auto}
+thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);box-shadow:0 1px 0 var(--border)}
 th{border-bottom:1px solid var(--border);background:var(--surface-2)}
 td{border-bottom:1px solid var(--border)}
 tbody tr:last-child td{border-bottom:0}
@@ -1280,6 +1297,19 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{
 
 /* ── ۱۷) حالت خالی ────────────────────────────────────────── */
 .empty svg{color:var(--muted);width:34px;height:34px}
+.empty-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);margin-bottom:6px}
+.empty-sub{font-size:var(--fs-xs);color:var(--muted);margin-bottom:4px}
+.app-splash{min-height:60vh;display:grid;place-items:center;gap:14px;color:var(--muted);font-size:var(--fs-sm)}
+.splash-spin{
+  width:34px;height:34px;border-radius:50%;
+  border:3px solid var(--border-strong);border-top-color:var(--accent);
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.app-error{min-height:60vh;display:grid;place-items:center;gap:10px;text-align:center;padding:40px;color:var(--muted)}
+.app-error svg{color:var(--amber);width:34px;height:34px}
+.app-error-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+.app-error-sub{font-size:var(--fs-xs);color:var(--muted);max-width:440px}
 
 /* ── ۱۸) ریسپانسیو ────────────────────────────────────────── */
 @media(max-width:760px){
