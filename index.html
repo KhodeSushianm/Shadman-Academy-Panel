@@ -459,7 +459,7 @@ function notesPage(){
  return `<div class="page"><section class="page-head"><div><div class="eyebrow">NOTES</div><h1 class="title">یادداشت‌ها</h1><div class="desc">یادداشت‌های مشاور برای پیگیری دانش‌آموزان.</div></div><button class="primary" onclick="openNoteModal()"><i data-lucide="plus"></i>یادداشت جدید</button></section><div class="card section-card"><div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>یادداشت</th><th>تاریخ</th><th></th></tr></thead><tbody>${rows.map(n=>`<tr><td><b>${esc(n.first_name+' '+n.last_name)}</b></td><td style="white-space:normal;max-width:650px">${esc(n.text)}</td><td>${esc(n.date)}</td><td><button class="row-btn" onclick="deleteNote(${n.id})"><i data-lucide="trash-2"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 function settingsPage(){
- return `<div class="page"><section class="page-head"><div><div class="eyebrow">SETTINGS</div><h1 class="title">تنظیمات</h1><div class="desc">محل ذخیره‌سازی دیتابیس و ظاهر پنل.</div></div></section><div class="card section-card"><div class="card-head"><div><div class="card-title">محل ذخیره‌سازی</div><div class="card-sub">یک پوشه روی کامپیوتر مشاور برای فایل SQLite انتخاب کنید.</div></div><button class="secondary" onclick="chooseStorageFolder()"><i data-lucide="folder-open"></i> انتخاب پوشه</button></div><div id="storageInfo" style="padding:18px;font-size:10px;color:var(--muted)">در حال بررسی محل ذخیره‌سازی...</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">ظاهر</div><div class="card-sub">حالت نمایش پنل</div></div><button class="secondary" onclick="toggleTheme()">تغییر حالت</button></div><div style="padding:18px;font-size:10px;color:var(--muted)">اطلاعات پنل مستقیماً از فایل SQLite انتخاب‌شده خوانده و در همان فایل ذخیره می‌شود.</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">داده‌ها</div><div class="card-sub">پشتیبان‌گیری و بازنشانی</div></div><div style="display:flex;gap:7px"><button class="secondary" onclick="exportDB()">خروجی دیتابیس</button><button class="secondary danger" onclick="resetDB()">بازنشانی داده‌ها</button></div></div></div></div>`;
+ return `<div class="page"><section class="page-head"><div><div class="eyebrow">SETTINGS</div><h1 class="title">تنظیمات</h1><div class="desc">محل ذخیره‌سازی دیتابیس و ظاهر پنل.</div></div></section><div class="card section-card"><div class="card-head"><div><div class="card-title">محل ذخیره‌سازی</div><div class="card-sub">یک پوشه روی کامپیوتر مشاور برای فایل SQLite انتخاب کنید.</div></div><button class="secondary" onclick="chooseStorageFolder()"><i data-lucide="folder-open"></i> انتخاب پوشه</button></div><div id="storageInfo" style="padding:18px;font-size:10px;color:var(--muted)">در حال بررسی محل ذخیره‌سازی...</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">ظاهر</div><div class="card-sub">حالت نمایش پنل</div></div><button class="secondary" onclick="toggleTheme()">تغییر حالت</button></div><div style="padding:18px;font-size:10px;color:var(--muted)">اطلاعات پنل مستقیماً از فایل SQLite انتخاب‌شده خوانده و در همان فایل ذخیره می‌شود.</div></div><div class="card section-card"><div class="card-head"><div><div class="card-title">داده‌ها</div><div class="card-sub">پشتیبان‌گیری و بازنشانی</div></div><div style="display:flex;gap:7px"><button class="secondary" onclick="exportDB()">خروجی دیتابیس</button><button class="secondary" onclick="restoreDB()"><i data-lucide="archive-restore"></i> بازیابی از فایل</button><button class="secondary danger" onclick="resetDB()">بازنشانی داده‌ها</button></div></div></div></div>`;
 }
 
 function openStudentModal(id=null){
@@ -574,6 +574,54 @@ async function updateStorageInfo(){
  lucide.createIcons();
 }
 function exportDB(){const a=db.export();let blob=new Blob([a],{type:'application/x-sqlite3'}),url=URL.createObjectURL(blob),el=document.createElement('a');el.href=url;el.download='shima-academy.sqlite';el.click();URL.revokeObjectURL(url);toast('فایل SQLite ساخته شد') }
+/* ── بازیابی از فایل پشتیبان ───────────────────────────────────
+   مسیر برگشتی که پیش از این وجود نداشت: کاربر می‌تواند از یک فایل
+   sqlite که قبلاً خروجی گرفته، داده‌ها را برگرداند. اعتبارسنجی هدر
+   هم در main و هم این‌جا انجام می‌شود تا در حالت مرورگر هم امن باشد. */
+function looksLikeSqlite(bytes){
+ if(!bytes||bytes.length<100)return false;
+ const magic='SQLite format 3\0';
+ for(let i=0;i<16;i++)if(bytes[i]!==magic.charCodeAt(i))return false;
+ return true;
+}
+function loadRestoredDatabase(bytes){
+ try{db=new SQL.Database(bytes)}
+ catch(e){console.error('[restore] فایل دیتابیس باز نشد:',e);toast('فایل دیتابیس قابل خواندن نبود');return false}
+ migrate();render();updateStorageInfo();return true;
+}
+async function restoreFromBase64(b64){
+ let bytes;
+ try{bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0))}
+ catch(e){console.error('[restore] base64 نامعتبر:',e);toast('فایل پشتیبان نامعتبر است');return false}
+ if(!looksLikeSqlite(bytes)){toast('این فایل یک دیتابیس SQLite معتبر نیست');return false}
+ if(loadRestoredDatabase(bytes)){persistNow();toast('دیتابیس با موفقیت بازیابی شد');return true}
+ return false;
+}
+async function restoreDB(){
+ if(!confirm('داده‌های فعلی با فایل پشتیبان جایگزین شوند؟\n\nنسخه‌ی فعلی به‌صورت خودکار در shima-academy.sqlite.bak نگه داشته می‌شود.'))return;
+ flushPersist();
+ if(window.electronAPI&&typeof window.electronAPI.restoreDatabase==='function'){
+   try{
+     const r=await window.electronAPI.restoreDatabase();
+     if(!r||r.cancelled)return;
+     if(!r.ok){toast(r.message||'بازیابی انجام نشد');return}
+     await restoreFromBase64(r.data);
+   }catch(e){console.error(e);toast('بازیابی انجام نشد')}
+   return;
+ }
+ /* حالت مرورگر: خواندن از ورودی فایل */
+ const input=document.createElement('input');
+ input.type='file';input.accept='.sqlite,.db,.bak,application/octet-stream';
+ input.onchange=async()=>{
+   const file=input.files&&input.files[0];if(!file)return;
+   try{
+     const bytes=new Uint8Array(await file.arrayBuffer());
+     if(!looksLikeSqlite(bytes)){toast('این فایل یک دیتابیس SQLite معتبر نیست');return}
+     if(loadRestoredDatabase(bytes)){persistNow();toast('دیتابیس با موفقیت بازیابی شد')}
+   }catch(e){console.error(e);toast('بازیابی انجام نشد')}
+ };
+ input.click();
+}
 function resetDB(){if(!confirm('همه‌ی داده‌ها برای همیشه حذف شوند؟\n\nاین عمل قابل بازگشت نیست. پیشنهاد می‌شود پیش از ادامه، با «خروجی دیتابیس» یک پشتیبان بگیرید.'))return;createDB();render();toast('داده‌ها بازنشانی شدند')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch()}});
 if(ls.get('shima-theme')==='light')document.body.classList.add('light');
