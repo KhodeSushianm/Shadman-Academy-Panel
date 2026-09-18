@@ -243,6 +243,7 @@ h1,h2,h3,h4,p,td,th,.student-name,.activity-title{
     <div class="nav-title">Workspace</div>
     <button class="nav-btn active" data-page="dashboard"><i data-lucide="layout-dashboard"></i>داشبورد</button>
     <button class="nav-btn" data-page="students"><i data-lucide="graduation-cap"></i>دانش‌آموزان <span class="nav-count" id="studentCount">0</span></button>
+    <button class="nav-btn" data-page="followups"><i data-lucide="clipboard-list"></i>پیگیری‌ها <span class="nav-count" id="followupCount">0</span></button>
     <button class="nav-btn" data-page="plans"><i data-lucide="calendar-days"></i>برنامه‌های مطالعاتی</button>
     <button class="nav-btn" data-page="exams"><i data-lucide="notebook-pen"></i>آزمون‌ها</button>
     <button class="nav-btn" data-page="notes"><i data-lucide="sticky-note"></i>یادداشت‌ها</button>
@@ -411,14 +412,16 @@ function render(){
  const app=document.getElementById('app');
  if(currentPage==='dashboard') app.innerHTML=dashboard();
  if(currentPage==='students') app.innerHTML=studentsPage();
+ if(currentPage==='followups') app.innerHTML=followupsPage();
  if(currentPage==='plans') app.innerHTML=plansPage();
  if(currentPage==='exams') app.innerHTML=examsPage();
  if(currentPage==='notes') app.innerHTML=notesPage();
  if(currentPage==='settings') app.innerHTML=settingsPage();
  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));
- const names={dashboard:'داشبورد',students:'دانش‌آموزان',plans:'برنامه‌های مطالعاتی',exams:'آزمون‌ها',notes:'یادداشت‌ها',settings:'تنظیمات'};
+ const names={dashboard:'داشبورد',students:'دانش‌آموزان',followups:'پیگیری‌ها',plans:'برنامه‌های مطالعاتی',exams:'آزمون‌ها',notes:'یادداشت‌ها',settings:'تنظیمات'};
  document.getElementById('crumb').textContent='Workspace / '+names[currentPage];
  document.getElementById('studentCount').textContent=fmt(q('SELECT COUNT(*) n FROM students')[0].n);
+ document.getElementById('followupCount').textContent=fmt(followupTotal());
  lucide.createIcons();
 }
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page;render();closeDrawer();document.getElementById('sidebar').classList.remove('open')});
@@ -485,6 +488,31 @@ function filterStudents(term){
  const st=document.getElementById('studentStatus').value, t=(term||'').toLowerCase();
  let rows=q('SELECT * FROM students ORDER BY id DESC').filter(s=>(!st||s.status===st)&&(`${s.first_name} ${s.last_name} ${s.phone} ${s.field} ${s.grade}`.toLowerCase().includes(t)));
  document.getElementById('studentsTable').innerHTML=studentTable(rows);lucide.createIcons();
+}
+/* ── صفحه‌ی پیگیری‌ها ──────────────────────────────────────────
+   صف کار روزانه: برنامه‌های انجام‌نشده‌ای که سررسیدشان رسیده
+   (عقب‌افتاده یا امروز) + دانش‌آموزانی که وضعیت‌شان «نیاز به پیگیری» است.
+   مقایسه‌ی رشته‌ای تاریخ‌ها امن است چون فرمت جلالی YYYY/MM/DD با صفر
+   پیشوند ذخیره می‌شود. */
+function followupTotal(){
+ const t=todayJalali();
+ return q("SELECT COUNT(*) n FROM plans WHERE status='pending' AND date<=?",[t])[0].n
+      + q("SELECT COUNT(*) n FROM students WHERE status='warning'")[0].n;
+}
+function followupsPage(){
+ const today=todayJalali();
+ const plans=q(`SELECT p.*,s.first_name,s.last_name FROM plans p JOIN students s ON s.id=p.student_id
+                WHERE p.status='pending' AND p.date<=? ORDER BY p.date ASC, p.id ASC`,[today]);
+ const warns=q(`SELECT * FROM students WHERE status='warning' ORDER BY id DESC`);
+ return `<div class="page">
+ <section class="page-head"><div><div class="eyebrow">FOLLOW-UPS</div><h1 class="title">پیگیری‌ها</h1><div class="desc">کارهای امروز: برنامه‌های معوق و دانش‌آموزانی که منتظر تماس شما هستند.</div></div></section>
+ <div class="card section-card"><div class="card-head"><div><div class="card-title">برنامه‌های در انتظار انجام</div><div class="card-sub">${fmt(plans.length)} مورد — عقب‌افتاده‌ترین اول</div></div></div>
+ ${plans.length?`<div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>تاریخ</th><th>درس</th><th>عنوان</th><th>سررسید</th><th></th></tr></thead><tbody>${plans.map(p=>`<tr><td><b>${esc(p.first_name+' '+p.last_name)}</b></td><td>${esc(p.date)}</td><td>${esc(p.subject)}</td><td>${esc(p.title)}</td><td>${p.date<today?'<span class="status inactive">عقب‌افتاده</span>':'<span class="status warning">امروز</span>'}</td><td><button class="secondary" onclick="togglePlan(${p.id})"><i data-lucide="check"></i> انجام شد</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><i data-lucide="check-check"></i><div>برنامه‌ی معوقی وجود ندارد.</div></div>`}
+ </div>
+ <div class="card section-card"><div class="card-head"><div><div class="card-title">دانش‌آموزان نیازمند پیگیری</div><div class="card-sub">${fmt(warns.length)} مورد</div></div></div>
+ ${warns.length?`<div class="table-wrap"><table><thead><tr><th>دانش‌آموز</th><th>پایه / رشته</th><th>مشاور</th><th>تماس</th><th></th></tr></thead><tbody>${warns.map(st=>`<tr><td><div class="student"><div class="avatar">${esc(initials(st))}</div><div><b>${esc(studentName(st))}</b></div></div></td><td>${esc(st.grade)} • ${esc(st.field)}</td><td>${esc(st.advisor||'—')}</td><td>${esc(st.phone)}</td><td><button class="secondary" onclick="openDrawer(${st.id})"><i data-lucide="eye"></i> مشاهده</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><i data-lucide="smile"></i><div>همه‌چیز تحت کنترل است ✅</div></div>`}
+ </div>
+ </div>`;
 }
 function plansPage(){
  const rows=q(`SELECT p.*,s.first_name,s.last_name FROM plans p JOIN students s ON s.id=p.student_id ORDER BY p.id DESC`);
