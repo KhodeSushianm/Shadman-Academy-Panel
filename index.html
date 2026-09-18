@@ -533,7 +533,17 @@ function recalcStudentScore(sid){
  if(sid==null)return;
  db.run('UPDATE students SET score=(SELECT COALESCE(ROUND(AVG(score)),0) FROM exams WHERE student_id=?) WHERE id=?',[sid,sid]);
 }
-function deleteStudent(id){if(!confirm('دانش‌آموز حذف شود؟'))return;db.run('DELETE FROM students WHERE id=?',[id]);db.run('DELETE FROM plans WHERE student_id=?',[id]);db.run('DELETE FROM exams WHERE student_id=?',[id]);db.run('DELETE FROM notes WHERE student_id=?',[id]);persist();render();toast('دانش‌آموز حذف شد')}
+function deleteStudent(id){if(!confirm('دانش‌آموز حذف شود؟'))return;
+ const snap={students:q('SELECT * FROM students WHERE id=?',[id]),plans:q('SELECT * FROM plans WHERE student_id=?',[id]),exams:q('SELECT * FROM exams WHERE student_id=?',[id]),notes:q('SELECT * FROM notes WHERE student_id=?',[id])};
+ db.run('DELETE FROM students WHERE id=?',[id]);db.run('DELETE FROM plans WHERE student_id=?',[id]);db.run('DELETE FROM exams WHERE student_id=?',[id]);db.run('DELETE FROM notes WHERE student_id=?',[id]);persist();render();
+ offerUndo('دانش‌آموز و همه‌ی رکوردهایش حذف شد',()=>{
+   for(const st of snap.students)db.run('INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)',[st.id,st.first_name,st.last_name,st.phone,st.grade,st.field,st.advisor,st.status,st.score,st.progress,st.created_at]);
+   for(const p of snap.plans)db.run('INSERT INTO plans VALUES(?,?,?,?,?,?,?)',[p.id,p.student_id,p.date,p.subject,p.title,p.duration,p.status]);
+   for(const e of snap.exams)db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[e.id,e.student_id,e.title,e.date,e.score]);
+   for(const n of snap.notes)db.run('INSERT INTO notes VALUES(?,?,?,?)',[n.id,n.student_id,n.text,n.date]);
+   persist();render();toast('دانش‌آموز بازگردانی شد');
+ });
+}
 
 function openPlanModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
@@ -543,7 +553,11 @@ function openPlanModal(){
 }
 function savePlan(){if(!f('pSubject'))return toast('درس را وارد کنید');db.run('INSERT INTO plans VALUES(?,?,?,?,?,?,?)',[nextId('plans'),Number(f('pStudent')),f('pDate'),f('pSubject'),f('pTitle'),Number(f('pDuration'))||0,'pending']);persist();closeModal();render();toast('برنامه ایجاد شد')}
 function togglePlan(id){const p=one('SELECT status FROM plans WHERE id=?',[id]);db.run('UPDATE plans SET status=? WHERE id=?',[p.status==='done'?'pending':'done',id]);persist();render();toast('وضعیت برنامه تغییر کرد')}
-function deletePlan(id){if(!confirm('این برنامه حذف شود؟'))return;db.run('DELETE FROM plans WHERE id=?',[id]);persist();render();toast('برنامه حذف شد')}
+function deletePlan(id){if(!confirm('این برنامه حذف شود؟'))return;
+ const row=one('SELECT * FROM plans WHERE id=?',[id]);if(!row)return;
+ db.run('DELETE FROM plans WHERE id=?',[id]);persist();render();
+ offerUndo('برنامه حذف شد',()=>{db.run('INSERT INTO plans VALUES(?,?,?,?,?,?,?)',[row.id,row.student_id,row.date,row.subject,row.title,row.duration,row.status]);persist();render();toast('برنامه بازگردانی شد')});
+}
 
 function openExamModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
@@ -552,7 +566,11 @@ function openExamModal(){
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
 function saveExam(){if(!f('eTitle')||!f('eScore'))return toast('نام آزمون و تراز الزامی است');const id=nextId('exams');db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[id,Number(f('eStudent')),f('eTitle'),f('eDate'),Number(f('eScore'))]);recalcStudentScore(Number(f('eStudent')));persist();closeModal();render();toast('نتیجه آزمون ثبت شد')}
-function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;const owner=one('SELECT student_id FROM exams WHERE id=?',[id]);db.run('DELETE FROM exams WHERE id=?',[id]);if(owner)recalcStudentScore(owner.student_id);persist();render();toast('آزمون حذف شد')}
+function deleteExam(id){if(!confirm('نتیجه آزمون حذف شود؟'))return;
+ const row=one('SELECT * FROM exams WHERE id=?',[id]);if(!row)return;
+ db.run('DELETE FROM exams WHERE id=?',[id]);recalcStudentScore(row.student_id);persist();render();
+ offerUndo('نتیجه آزمون حذف شد',()=>{db.run('INSERT INTO exams VALUES(?,?,?,?,?)',[row.id,row.student_id,row.title,row.date,row.score]);recalcStudentScore(row.student_id);persist();render();toast('آزمون بازگردانی شد')});
+}
 
 function openNoteModal(){
  const ss=q('SELECT * FROM students ORDER BY first_name,last_name');
@@ -561,7 +579,11 @@ function openNoteModal(){
  document.getElementById('modalBack').classList.add('show');lucide.createIcons();
 }
 function saveNote(){if(!f('nText'))return toast('متن یادداشت را وارد کنید');db.run('INSERT INTO notes VALUES(?,?,?,?)',[nextId('notes'),Number(f('nStudent')),f('nText'),todayJalali()]);persist();closeModal();render();toast('یادداشت ثبت شد')}
-function deleteNote(id){if(!confirm('یادداشت حذف شود؟'))return;db.run('DELETE FROM notes WHERE id=?',[id]);persist();render();toast('یادداشت حذف شد')}
+function deleteNote(id){if(!confirm('یادداشت حذف شود؟'))return;
+ const row=one('SELECT * FROM notes WHERE id=?',[id]);if(!row)return;
+ db.run('DELETE FROM notes WHERE id=?',[id]);persist();render();
+ offerUndo('یادداشت حذف شد',()=>{db.run('INSERT INTO notes VALUES(?,?,?,?)',[row.id,row.student_id,row.text,row.date]);persist();render();toast('یادداشت بازگردانی شد')});
+}
 
 function openDrawer(id){
  const s=one('SELECT * FROM students WHERE id=?',[id]);if(!s)return;
@@ -579,7 +601,42 @@ function openDrawer(id){
 function closeDrawer(){document.getElementById('drawerBack').classList.remove('show');document.getElementById('drawer').classList.remove('show')}
 function closeModal(){document.getElementById('modalBack').classList.remove('show')}
 function f(id){return document.getElementById(id)?.value?.trim()||''}
-function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>x.classList.remove('show'),2200)}
+/* توست با دکمه‌ی اقدام اختیاری و نوار زمان.
+   پایه‌ی واگردایی حذف: پس از حذف، یک snapshot درون‌حافظه‌ای نگه داشته
+   می‌شود و کاربر ۸ ثانیه فرصت دارد با یک کلیک برگرداند. */
+let pendingUndo=null, undoExpireTimer=null;
+function hideToast(){const x=document.getElementById('toast');x.classList.remove('show');clearTimeout(toastTimer)}
+function toast(t,opts){
+ opts=opts||{};
+ const x=document.getElementById('toast');
+ const dur=opts.duration||2200;
+ x.textContent='';
+ const msg=document.createElement('span');msg.className='toast-msg';msg.textContent=t;x.appendChild(msg);
+ if(opts.actionLabel){
+   const b=document.createElement('button');b.type='button';b.className='toast-action';b.textContent=opts.actionLabel;
+   b.onclick=()=>{const fn=pendingUndo;pendingUndo=null;hideToast();if(fn)fn()};
+   x.appendChild(b);
+   x.classList.add('has-action');
+ }else{
+   x.classList.remove('has-action');
+ }
+ const bar=document.createElement('i');bar.className='toast-bar';bar.style.animationDuration=dur+'ms';x.appendChild(bar);
+ x.classList.add('show');
+ clearTimeout(toastTimer);toastTimer=setTimeout(hideToast,dur);
+}
+/* پیشنهاد واگردایی: تابع بازیابی تا پایان مهلت (۸ ثانیه) نگه داشته می‌شود */
+function offerUndo(message,restoreFn){
+ pendingUndo=restoreFn;
+ clearTimeout(undoExpireTimer);
+ undoExpireTimer=setTimeout(()=>{pendingUndo=null},8000);
+ toast(message,{duration:8000,actionLabel:'بازگردانی'});
+}
+/* اجرای واگردایی؛ اگر مهلت گذشته باشد false برمی‌گرداند */
+function undoLastDelete(){
+ const fn=pendingUndo;pendingUndo=null;clearTimeout(undoExpireTimer);
+ if(!fn)return false;
+ fn();return true;
+}
 function toggleTheme(){document.body.classList.toggle('light');ls.set('shima-theme',document.body.classList.contains('light')?'light':'dark')}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
 function focusSearch(){if(currentPage!=='students'){currentPage='students';render()}setTimeout(()=>document.getElementById('studentSearch')?.focus(),50)}
@@ -1019,6 +1076,19 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{
 
 /* ── ۵) توست ─────────────────────────────────────────────── */
 .toast{background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong);box-shadow:var(--shadow-1)}
+.toast{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--radius-sm);overflow:hidden}
+.toast-msg{flex:1}
+.toast-action{
+  border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);
+  font-size:var(--fs-xs);font-weight:700;padding:6px 12px;border-radius:8px;white-space:nowrap;
+}
+.toast-action:hover{background:var(--accent);color:var(--on-accent)}
+.toast-bar{
+  position:absolute;bottom:0;right:0;height:3px;width:100%;
+  background:var(--accent);opacity:.7;animation:toastbar linear forwards;
+}
+@keyframes toastbar{from{width:100%}to{width:0}}
+.toast:not(.show) .toast-bar{animation:none;width:0}
 
 /* ── ۱۶) نمودار ───────────────────────────────────────────── */
 .chart svg polyline{stroke:var(--accent);stroke-width:3}
