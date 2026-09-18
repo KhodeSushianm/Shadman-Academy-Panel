@@ -406,7 +406,7 @@ function dashboard(){
  </div>`;
 }
 function stat(label,num,icon,foot,kind){
- let c=kind==='yellow'?'color:#fcd34d;background:#fbbf2410':kind==='blue'?'color:#93c5fd;background:#60a5fa10':'';
+ let c=kind==='yellow'?'color:var(--amber);background:var(--amber-soft)':kind==='blue'?'color:var(--blue);background:var(--blue-soft)':kind==='red'?'color:var(--red);background:var(--red-soft)':kind==='green'?'color:var(--green);background:var(--green-soft)':'';
  return `<div class="stat"><div class="stat-top"><span class="stat-label">${label}</span><span class="stat-icon" style="${c}"><i data-lucide="${icon}"></i></span></div><div class="stat-num">${num}</div><div class="stat-foot">${foot}</div></div>`;
 }
 function chart(){
@@ -581,45 +581,382 @@ init();
 </script>
 
 
-<style id="neutral-matte-theme">
-:root{--bg:#111315;--surface:#17191c;--surface2:#1c1f22;--surface3:#22262a;--border:rgba(255,255,255,.085);--muted:#8d9298;--text:#ecebe8;--primary:#9b9185;--primary-strong:#b0a69a;--green:#7fa48d;--yellow:#b4a16f;--red:#b98787;--blue:#879aaa;--focus:rgba(176,166,154,.22)}
-body,body:not(.light){background:radial-gradient(circle at 70% -15%,rgba(255,255,255,.035),transparent 34%),linear-gradient(180deg,#111315 0%,#101214 100%);color:var(--text)}
-body.light{--bg:#e9e8e5;--surface:#f1f0ed;--surface2:#e7e6e2;--surface3:#dddbd6;--border:rgba(38,40,42,.12);--muted:#6f7377;--text:#252729;--primary:#6f675e;--primary-strong:#5f5851;--focus:rgba(95,88,81,.16);background:linear-gradient(180deg,#ecebe8 0%,#e7e6e2 100%)}
-.sidebar{background:rgba(20,22,24,.86);border-left:1px solid var(--border);box-shadow:8px 0 28px rgba(0,0,0,.08)}
-.light .sidebar{background:rgba(239,238,235,.88)}
-.topbar{background:rgba(17,19,21,.84);border-bottom:1px solid var(--border)}
-.light .topbar{background:rgba(236,235,232,.84)}
-.brand-icon{background:linear-gradient(135deg,#777067,#514b45);box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.eyebrow,.link-btn{color:var(--primary-strong)}
-.nav-btn.active{color:var(--text);background:rgba(255,255,255,.055);box-shadow:inset -2px 0 var(--primary)}
-.nav-count{background:rgba(255,255,255,.055);color:var(--primary-strong)}
-.nav-btn:hover,.icon-btn:hover,.row-btn:hover,.close:hover{background:rgba(255,255,255,.055);color:var(--text)}
-.light .nav-btn:hover,.light .icon-btn:hover,.light .row-btn:hover,.light .close:hover{background:rgba(0,0,0,.045)}
-.card,.stat{background:rgba(255,255,255,.022);border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.045)}
-.light .card,.light .stat{background:rgba(255,255,255,.36);box-shadow:0 8px 24px rgba(30,32,34,.045)}
-.card-head{background:rgba(255,255,255,.012);border-bottom:1px solid var(--border)}
-.primary{color:#f4f2ee;background:linear-gradient(135deg,#857a70,#635b53);box-shadow:0 8px 22px rgba(0,0,0,.16)}
-.light .primary{color:#fff;background:linear-gradient(135deg,#777067,#5f5851)}
-.secondary{background:rgba(255,255,255,.035);border-color:var(--border);color:var(--text)}
-.search,.filter,.field input,.field select,.field textarea{appearance:none;-webkit-appearance:none;width:100%;min-height:38px;background:rgba(255,255,255,.045)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:11px;box-shadow:none}
-.light .search,.light .filter,.light .field input,.light .field select,.light .field textarea{background:rgba(255,255,255,.58)!important}
-.search::placeholder,.field input::placeholder,.field textarea::placeholder{color:var(--muted);opacity:.9}
-.search:focus,.filter:focus,.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:rgba(176,166,154,.5)!important;box-shadow:0 0 0 3px var(--focus)!important}
-.filter{width:150px;padding-inline:34px 12px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-[dir="rtl"] .filter{background-position:11px 50%,16px 50%;padding-inline:34px 12px}
-.table-tools{width:100%;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;flex-wrap:wrap}
-.table-tools .search{flex:1 1 280px;width:auto;max-width:none}.table-tools .filter{flex:0 0 150px}
-.table-wrap{width:100%;overflow-x:auto;overflow-y:hidden}table{min-width:720px}
-th{color:#777d83}td{border-bottom-color:rgba(255,255,255,.055)}.light td{border-bottom-color:rgba(0,0,0,.055)}
-tbody tr:hover{background:rgba(255,255,255,.028)}.light tbody tr:hover{background:rgba(0,0,0,.025)}
-.avatar{background:linear-gradient(135deg,#2a2d30,#1d2022)}.light .avatar{background:linear-gradient(135deg,#d3d0ca,#bbb7b0);color:#34312d}
-.progress{background:#292d30}.progress i{background:linear-gradient(90deg,#766d64,#aaa095)}
-.status.active{background:rgba(127,164,141,.12);color:#9ab5a4}.status.warning{background:rgba(180,161,111,.12);color:#c0af82}.status.inactive{background:rgba(185,135,135,.12);color:#c59898}
-.modal-back{background:rgba(8,9,10,.62)}.modal,.drawer{background:rgba(23,25,28,.96);border-color:var(--border)}.light .modal,.light .drawer{background:rgba(242,241,238,.97)}
-.drawer{box-shadow:-24px 0 70px rgba(0,0,0,.22)}.detail,.note{background:rgba(255,255,255,.028)}.light .detail,.light .note{background:rgba(0,0,0,.025)}
-.stat-icon,.act-avatar{background:rgba(255,255,255,.055);color:var(--primary-strong)}.stat:after{background:rgba(255,255,255,.025)}
-.chart svg polyline{stroke:#aaa095}.chart svg polygon{opacity:.28}
-@media(max-width:760px){.table-tools{align-items:stretch}.table-tools .search,.table-tools .filter{flex:1 1 100%;width:100%;max-width:none}}
+<style id="theme">
+/* ════════════════════════════════════════════════════════════
+   تم یکپارچه‌ی پنل — نسخه‌ی ۲
+   تمام رنگ‌ها از توکن‌های CSS می‌آیند؛ هیچ رنگ hard-code برای متن
+   وجود ندارد. همه‌ی جفت‌رنگ‌های متن/پس‌زمینه WCAG 2.1 AA پاس می‌کنند
+   (برای متن عادی ≥4.5:1، برای متن بزرگ و مرز عناصر تعاملی ≥3:1).
+   ════════════════════════════════════════════════════════════ */
+
+/* ── ۱) توکن‌ها: حالت تاریک (پیش‌فرض) ─────────────────────── */
+:root{
+  --bg:#0f1113;
+  --surface:#16191c;
+  --surface-2:#1c2024;
+  --surface-3:#23282c;
+  --surface-hover:#282e33;
+
+  --border:#2b3138;          /* حاشیه‌ی تزئینی کارت‌ها */
+  --border-strong:#66717b;   /* مرز عناصر تعاملی — 3.29:1 روی surface-2 */
+
+  --text:#f2f4f6;
+  --text-2:#ccd2d8;
+  --muted:#9aa4ae;
+
+  --accent:#8ab6ff;
+  --accent-strong:#b3d0ff;
+  --accent-deep:#5b8fe0;
+  --on-accent:#0a1a33;
+  --accent-soft:rgba(138,182,255,.14);
+  --accent-ring:rgba(138,182,255,.42);
+
+  --green:#7ad6a4; --green-soft:rgba(122,214,164,.16);
+  --amber:#f2c464; --amber-soft:rgba(242,196,100,.16);
+  --red:#ff9d9d;   --red-soft:rgba(255,157,157,.16);
+  --blue:#8fc1f7;  --blue-soft:rgba(143,193,247,.16);
+
+  --scroll-thumb:#525c66;
+  --scroll-thumb-hover:#68737e;
+  --scroll-track:transparent;
+  --overlay:rgba(6,8,10,.66);
+  --topbar-bg:rgba(15,17,19,.88);
+
+  --shadow-1:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.22);
+  --shadow-2:0 12px 44px rgba(0,0,0,.5);
+
+  --radius:14px;
+  --radius-sm:10px;
+
+  --fs-2xs:11px; --fs-xs:12px; --fs-sm:13px; --fs-base:14px; --fs-md:15px;
+  --fs-lg:17px; --fs-xl:20px; --fs-2xl:26px; --fs-3xl:30px;
+
+  --sidebar:262px;
+
+  /* نام‌های قدیمی — alias تا قاعده‌های بلوک‌های قبلی نشکنند */
+  --primary:var(--accent);
+  --primary-strong:var(--accent);
+  --surface2:var(--surface-2);
+  --surface3:var(--surface-3);
+  --focus:var(--accent-ring);
+  --yellow:var(--amber);
+  --card:var(--surface);
+}
+
+/* ── ۲) توکن‌ها: حالت روشن ─────────────────────────────────── */
+body.light{
+  --bg:#f4f3f0;
+  --surface:#ffffff;
+  --surface-2:#f1f0ec;
+  --surface-3:#e6e4df;
+  --surface-hover:#ddd9d2;
+
+  --border:#d9d6cf;
+  --border-strong:#8a8f97;   /* 3.25:1 روی سفید */
+
+  --text:#1a1c1f;
+  --text-2:#3e4349;
+  --muted:#5b6169;
+
+  --accent:#2757c9;
+  --accent-strong:#1c43a4;
+  --accent-deep:#3a68d6;
+  --on-accent:#ffffff;
+  --accent-soft:rgba(39,87,201,.10);
+  --accent-ring:rgba(39,87,201,.35);
+
+  --green:#136c45; --green-soft:rgba(19,108,69,.12);
+  --amber:#845100; --amber-soft:rgba(132,81,0,.12);
+  --red:#b02a24;   --red-soft:rgba(176,42,36,.11);
+  --blue:#15589b;  --blue-soft:rgba(21,88,155,.11);
+
+  --scroll-thumb:#a8a39a;
+  --scroll-thumb-hover:#8d887f;
+  --scroll-track:transparent;
+  --overlay:rgba(30,28,25,.45);
+  --topbar-bg:rgba(244,243,240,.92);
+
+  --shadow-1:0 1px 2px rgba(35,32,28,.06), 0 8px 24px rgba(35,32,28,.08);
+  --shadow-2:0 18px 60px rgba(35,32,28,.22);
+
+  --primary:var(--accent);
+  --primary-strong:var(--accent);
+  --surface2:var(--surface-2);
+  --surface3:var(--surface-3);
+  --focus:var(--accent-ring);
+  --yellow:var(--amber);
+  --card:var(--surface);
+}
+
+/* ویجت‌های بومی مرورگر/سیستم (اسکرول‌بار، دراپ‌داون select، اسپینر عددی)
+   با تم هماهنگ می‌شوند */
+:root{color-scheme:dark}
+body.light{color-scheme:light}
+
+/* گذار نرم هنگام جابه‌جایی تم */
+body,.sidebar,.topbar,.card,.stat,.modal,.drawer,.detail,.note,.search,.filter,
+.field input,.field select,.field textarea,.secondary,.card-head,.modal-head,.drawer-head{
+  transition:background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+
+/* احترام به ترجیح کاربر برای کاهش حرکت */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important;
+  }
+}
+
+/* ── ۳) پایه ──────────────────────────────────────────────── */
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-size:var(--fs-base);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+::selection{background:var(--accent-ring);color:var(--text)}
+
+/* ── ۴) اسکرول‌بار هماهنگ با تم ────────────────────────────── */
+*{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) var(--scroll-track)}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:var(--scroll-track)}
+::-webkit-scrollbar-thumb{
+  background:var(--scroll-thumb);
+  border-radius:99px;
+  border:3px solid var(--bg);          /* فاصله‌ی بصری از لبه */
+}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+::-webkit-scrollbar-corner{background:transparent}
+/* اسکرول‌بار باریک‌تر برای ناحیه‌های داخلی */
+.table-wrap::-webkit-scrollbar,.drawer::-webkit-scrollbar,.modal-body::-webkit-scrollbar{width:9px;height:9px}
+.table-wrap::-webkit-scrollbar-thumb,.drawer::-webkit-scrollbar-thumb{border-color:var(--surface)}
+
+/* ── ۵) مقیاس تایپوگرافی (خوانا به‌جای میکروسکوپی) ─────────── */
+.brand-name{font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.brand-sub{font-size:var(--fs-2xs);color:var(--muted);margin-top:2px}
+.ws-name{font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.ws-sub{font-size:var(--fs-2xs);color:var(--muted)}
+.nav-title{font-size:var(--fs-2xs);color:var(--muted);font-weight:600;letter-spacing:.09em}
+.nav-btn{font-size:13.5px;color:var(--text-2)}
+.nav-btn.active{color:var(--text)}
+.nav-count{font-size:var(--fs-2xs);background:var(--accent-soft);color:var(--accent)}
+.user-name{font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.user-sub{font-size:var(--fs-2xs);color:var(--muted)}
+.crumb{font-size:var(--fs-xs);color:var(--muted)}
+.eyebrow{font-size:var(--fs-2xs);color:var(--accent);font-weight:700}
+.title{font-size:var(--fs-2xl);color:var(--text);letter-spacing:-.4px}
+.desc{font-size:var(--fs-sm);color:var(--muted)}
+.stat-label{font-size:var(--fs-xs);color:var(--muted)}
+.stat-num{font-size:28px;color:var(--text);font-weight:800;letter-spacing:-.5px}
+.stat-foot{font-size:var(--fs-2xs);color:var(--muted)}
+.card-title{font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.card-sub{font-size:var(--fs-xs);color:var(--muted)}
+.link-btn{font-size:var(--fs-xs);color:var(--accent);font-weight:600}
+.link-btn:hover{color:var(--accent-strong);text-decoration:underline}
+th{font-size:var(--fs-2xs);color:var(--muted);font-weight:600;letter-spacing:.02em}
+td{font-size:var(--fs-sm);color:var(--text-2)}
+td b,td strong{color:var(--text)}
+.small{font-size:var(--fs-2xs);color:var(--muted)}
+.status{font-size:var(--fs-2xs);font-weight:600}
+.empty{font-size:var(--fs-sm);color:var(--muted)}
+.search,.filter{font-size:var(--fs-sm)}
+.field label{font-size:var(--fs-2xs);color:var(--muted);font-weight:600}
+.field input,.field select,.field textarea{font-size:var(--fs-sm);color:var(--text)}
+.secondary{font-size:var(--fs-xs);color:var(--text-2)}
+.primary{font-size:13.5px;font-weight:600}
+.modal-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+.hero-name{font-size:19px;font-weight:700;color:var(--text)}
+.hero-meta{font-size:var(--fs-xs);color:var(--muted)}
+.detail-label{font-size:var(--fs-2xs);color:var(--muted)}
+.detail-value{font-size:var(--fs-sm);color:var(--text)}
+.drawer-section h3{font-size:var(--fs-sm);color:var(--text)}
+.note{font-size:var(--fs-xs);color:var(--text-2);line-height:1.9}
+.toast{font-size:var(--fs-sm)}
+.act-name{font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.act-text{font-size:var(--fs-xs);color:var(--muted)}
+.act-time{font-size:var(--fs-2xs);color:var(--muted)}
+.chart-labels{font-size:var(--fs-2xs);color:var(--muted)}
+.table-card .card-head .link-btn{font-size:var(--fs-xs)}
+
+/* ── ۶) پوسته: سایدبار ────────────────────────────────────── */
+.sidebar{
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  box-shadow:var(--shadow-1);
+  padding:18px 14px;
+}
+.brand-icon{
+  background:linear-gradient(135deg,var(--accent-deep),var(--accent-strong));
+  box-shadow:0 6px 18px var(--accent-ring);
+  width:40px;height:40px;border-radius:12px;
+}
+.brand-icon svg{width:20px;height:20px;color:var(--on-accent)}
+.workspace{background:var(--surface-2);border-color:var(--border)}
+.ws-avatar{
+  background:var(--accent-soft);color:var(--accent);
+  width:30px;height:30px;border-radius:9px;font-size:var(--fs-2xs);font-weight:700;
+}
+.nav-btn{border-radius:var(--radius-sm);transition:background .15s ease,color .15s ease}
+.nav-btn:hover{background:var(--surface-hover);color:var(--text)}
+.nav-btn.active{
+  background:var(--accent-soft);color:var(--text);
+  box-shadow:inset -2px 0 0 var(--accent);
+}
+.nav-btn svg{width:17px;height:17px;color:currentColor;opacity:.85}
+.nav-btn.active svg{opacity:1;color:var(--accent)}
+.user-avatar{
+  background:linear-gradient(135deg,var(--accent-deep),var(--accent-strong));
+  color:var(--on-accent);font-size:var(--fs-xs);width:34px;height:34px;
+}
+.sidebar-bottom{border-top:1px solid var(--border);padding-top:10px;margin-top:12px}
+
+/* ── ۷) پوسته: نوار بالا ──────────────────────────────────── */
+.topbar{background:var(--topbar-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.icon-btn{color:var(--muted)}
+.icon-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
+.icon-btn svg{width:17px;height:17px}
+
+/* ── ) کارت‌ها و آمار ────────────────────────────────────── */
+.card,.stat{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-1);
+}
+.stat:after{background:var(--accent-soft);opacity:.5}
+.stat-icon{background:var(--accent-soft);color:var(--accent);width:34px;height:34px}
+.stat-icon svg{width:17px;height:17px}
+.green{color:var(--green)}.yellow{color:var(--amber)}.red{color:var(--red)}.blue{color:var(--blue)}
+.card-head{border-bottom:1px solid var(--border);background:var(--surface-2)}
+
+/* ── ۹) جدول ──────────────────────────────────────────────── */
+table{min-width:760px}
+th{border-bottom:1px solid var(--border);background:var(--surface-2)}
+td{border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s ease}
+tbody tr:hover{background:var(--surface-hover)}
+.avatar{
+  background:var(--accent-soft);color:var(--accent);
+  width:34px;height:34px;border-radius:10px;font-size:var(--fs-2xs);font-weight:700;
+}
+.light .avatar{background:var(--accent-soft)}
+.progress{background:var(--surface-3);height:6px;width:92px;border-radius:99px}
+.progress i{background:linear-gradient(90deg,var(--accent-deep),var(--accent));border-radius:inherit}
+
+/* ── ۰) بج‌های وضعیت ─────────────────────────────────────── */
+.status{border-radius:7px;padding:4px 9px}
+.status.active{background:var(--green-soft);color:var(--green)}
+.status.active:before{background:var(--green)}
+.status.warning{background:var(--amber-soft);color:var(--amber)}
+.status.warning:before{background:var(--amber)}
+.status.inactive{background:var(--red-soft);color:var(--red)}
+.status.inactive:before{background:var(--red)}
+
+/* ── ۱۱) دکمه‌ها ──────────────────────────────────────────── */
+.primary{
+  background:var(--accent);color:var(--on-accent);
+  box-shadow:0 6px 18px var(--accent-ring);
+  border-radius:var(--radius-sm);
+  transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.primary:hover{background:var(--accent-strong);transform:translateY(-1px)}
+.primary svg{width:16px;height:16px}
+.secondary{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text-2);
+  border-radius:var(--radius-sm);
+}
+.secondary:hover{background:var(--surface-hover);color:var(--text)}
+.secondary.danger,.danger{color:var(--red)!important;border-color:var(--red-soft)!important;box-shadow:inset 0 0 0 1px var(--red-soft)}
+.row-btn{width:30px;height:30px;color:var(--muted);border-radius:8px}
+.row-btn:hover{background:var(--surface-hover);color:var(--text)}
+.row-btn svg{width:15px;height:15px}
+.close{color:var(--muted)}
+.close:hover{background:var(--surface-hover);color:var(--text)}
+
+/* ── ۱۲) فرم‌ها ───────────────────────────────────────────── */
+.search,.filter,.field input,.field select,.field textarea{
+  appearance:none;-webkit-appearance:none;
+  background:var(--surface-2)!important;
+  color:var(--text)!important;
+  border:1px solid var(--border-strong)!important;
+  border-radius:var(--radius-sm);
+  min-height:38px;
+}
+.field textarea{min-height:110px}
+.search::placeholder,.field input::placeholder,.field textarea::placeholder{color:var(--muted);opacity:1}
+.search:focus,.filter:focus,.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;
+  border-color:var(--accent)!important;
+  box-shadow:0 0 0 3px var(--accent-ring)!important;
+}
+/* فلش select با رنگ تم */
+.filter,.field select{
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)!important;
+  background-repeat:no-repeat!important;
+  background-size:5px 5px,5px 5px!important;
+}
+[dir="rtl"] .filter,[dir="rtl"] .field select{background-position:12px 50%,17px 50%!important;padding-inline:34px 12px!important}
+/* گزینه‌های select — پیش‌تر در هر دو تم ناخوانا بودند */
+.field select option,.filter option{
+  background:var(--surface);color:var(--text);
+}
+/* اسپینر عددی هماهنگ */
+.field input[type=number]{color-scheme:dark}
+body.light .field input[type=number]{color-scheme:light}
+
+/* ── ۱۳) حلقه‌ی فوکوس جهانی (≥3:1) ─────────────────────────── */
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:8px;
+}
+
+/* ── ۱۴) مودال و کشو ──────────────────────────────────────── */
+.modal-back{background:var(--overlay)}
+.modal,.drawer{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow-2);
+}
+.modal-head,.drawer-head{border-bottom:1px solid var(--border);background:var(--surface-2)}
+.drawer-back{background:var(--overlay)}
+.detail{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.hero-avatar{
+  background:linear-gradient(135deg,var(--accent-deep),var(--accent-strong));
+  color:var(--on-accent);
+}
+.act-avatar{background:var(--accent-soft);color:var(--accent);width:32px;height:32px;font-size:var(--fs-2xs)}
+.act{border-bottom:1px solid var(--border)}
+.act:last-child{border-bottom:0}
+
+/* ── ۵) توست ─────────────────────────────────────────────── */
+.toast{background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong);box-shadow:var(--shadow-1)}
+
+/* ── ۱۶) نمودار ───────────────────────────────────────────── */
+.chart svg polyline{stroke:var(--accent);stroke-width:3}
+.chart svg polygon{opacity:.22}
+.chart svg linearGradient stop{stop-color:var(--accent)}
+.average-chart-empty{color:var(--muted);font-size:var(--fs-sm)}
+.average-chart-empty strong{color:var(--text);display:block;font-size:var(--fs-base);margin-bottom:6px}
+
+/* ── ۱۷) حالت خالی ────────────────────────────────────────── */
+.empty svg{color:var(--muted);width:34px;height:34px}
+
+/* ── ۱۸) ریسپانسیو ────────────────────────────────────────── */
+@media(max-width:760px){
+  .table-tools{align-items:stretch}
+  .table-tools .search,.table-tools .filter{flex:1 1 100%;width:100%;max-width:none}
+}
+@media(max-width:1000px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .grid{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .sidebar{transform:translateX(100%)}
+  .sidebar.open{transform:none;box-shadow:var(--shadow-2)}
+  .main{width:100%;margin:0;padding:0 16px 44px}
+  .title{font-size:22px}
+}
 </style>
 
 <script id="visual-polish-script">
