@@ -67,6 +67,6 @@ jobs:
             gh release upload "$TAG" release/*.exe --clobber
           else
             gh release create "$TAG" release/*.exe \
-              --title "نسخه‌ی ویندوز 1.2.0" \
+              --title "نسخه‌ی ویندوز ${VER}" \
               --notes "$NOTES"
           fi
