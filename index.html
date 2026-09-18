@@ -726,7 +726,7 @@ function undoLastDelete(){
  const fn=pendingUndo;pendingUndo=null;clearTimeout(undoExpireTimer);
  if(!fn)return false;
  fn();return true;
-function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>x.classList.remove('show'),2200)}
+}
 /* ── اعلان‌های واقعی ───────────────────────────────────────────
    پیش از این زنگ فقط یک پیام ثابت می‌داد. اکنون بج و پنل از داده‌ی
    واقعی حساب می‌شوند و با صف «پیگیری‌ها» هم‌منبع‌اند تا هرگز
